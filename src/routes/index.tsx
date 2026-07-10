@@ -33,6 +33,7 @@ import {
 } from "@/lib/catalog";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { CatalogGallery } from "@/components/CatalogGallery";
 
 export const Route = createFileRoute("/")({
   head: () => ({
