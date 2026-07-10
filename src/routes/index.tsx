@@ -33,6 +33,7 @@ import {
 } from "@/lib/catalog";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { CatalogGallery } from "@/components/CatalogGallery";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -442,6 +443,8 @@ function BrandView({
           Enviar pedido {t.count > 0 && `(${currency(t.total)})`}
         </Button>
       </div>
+
+      {brand === "payot" && <CatalogGallery />}
 
       {/* Filters */}
       <div className="sticky top-[57px] z-30 -mx-4 mb-6 border-b border-border/60 bg-background/95 px-4 py-3 backdrop-blur">
