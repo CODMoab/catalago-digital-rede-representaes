@@ -122,19 +122,3 @@ export function CatalogGallery() {
   );
 }
 
-export function CatalogGalleryTrigger() {
-  return (
-    <Dialog>
-      <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-2">
-          <BookOpen className="size-4" />
-          Ver catálogos com fotos
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="max-w-6xl">
-        <DialogTitle>Catálogos visuais Payot</DialogTitle>
-        <CatalogGallery />
-      </DialogContent>
-    </Dialog>
-  );
-}
