@@ -547,6 +547,8 @@ function ProductCard({
 }) {
   const isBelliz = brand === "belliz";
   const p = product as any;
+  const img = productImage(brand, p.code);
+
   const coletivo = isBelliz ? Math.max(1, p.coletivo || 1) : 1;
   const unitPrice = isBelliz
     ? p.priceColetivo && p.coletivo
