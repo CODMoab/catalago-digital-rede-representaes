@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/sheet";
 import {
   BELLIZ,
+  productImage,
   PAYOT,
   BRANDS,
   WHATSAPP_NUMBER,
@@ -547,6 +548,8 @@ function ProductCard({
 }) {
   const isBelliz = brand === "belliz";
   const p = product as any;
+  const img = productImage(brand, p.code);
+
   const coletivo = isBelliz ? Math.max(1, p.coletivo || 1) : 1;
   const unitPrice = isBelliz
     ? p.priceColetivo && p.coletivo
@@ -560,6 +563,24 @@ function ProductCard({
 
   return (
     <article className="group flex flex-col rounded-xl border border-border bg-card p-4 transition-all hover:border-primary/50 hover:shadow-md">
+      <div className="mb-3 flex h-40 items-center justify-center overflow-hidden rounded-lg bg-white">
+        {img ? (
+          <img
+            src={img}
+            alt={p.name}
+            loading="lazy"
+            className="h-40 w-full object-contain transition-transform duration-300 group-hover:scale-105"
+            onError={(e) => {
+              e.currentTarget.style.visibility = "hidden";
+            }}
+          />
+        ) : (
+          <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
+            sem foto
+          </span>
+        )}
+      </div>
+
       <div className="flex items-start justify-between gap-2">
         <span className="rounded-md bg-secondary px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-secondary-foreground">
           {formatLine(p.line)}
@@ -568,6 +589,7 @@ function ProductCard({
           #{p.code}
         </span>
       </div>
+
 
       <h3 className="mt-3 line-clamp-2 min-h-[2.75rem] text-sm font-semibold leading-snug">
         {p.name}

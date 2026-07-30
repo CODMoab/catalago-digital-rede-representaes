@@ -1,5 +1,6 @@
 import payotDataRaw from "@/data/payot.json";
 import bellizDataRaw from "@/data/belliz.json";
+import bellizImagesRaw from "@/data/belliz-images.json";
 
 export type BellizProduct = {
   code: string;
@@ -45,3 +46,11 @@ export const BRANDS: Record<BrandId, { id: BrandId; name: string; tagline: strin
 // EDITE AQUI: seu WhatsApp em formato internacional apenas com dígitos.
 export const WHATSAPP_NUMBER = "5571981862336";
 export const REP_NAME = "Representante Comercial";
+
+// Imagens oficiais dos produtos Belliz (bellizcompany.com.br)
+export const BELLIZ_IMAGES: Record<string, string> = bellizImagesRaw as Record<string, string>;
+
+export function productImage(brand: BrandId, code: string): string | null {
+  if (brand === "belliz") return BELLIZ_IMAGES[code] ?? null;
+  return null;
+}
