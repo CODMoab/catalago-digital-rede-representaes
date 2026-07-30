@@ -563,19 +563,24 @@ function ProductCard({
 
   return (
     <article className="group flex flex-col rounded-xl border border-border bg-card p-4 transition-all hover:border-primary/50 hover:shadow-md">
-      {img ? (
-        <div className="mb-3 overflow-hidden rounded-lg bg-white">
+      <div className="mb-3 flex h-40 items-center justify-center overflow-hidden rounded-lg bg-white">
+        {img ? (
           <img
             src={img}
             alt={p.name}
             loading="lazy"
-            className="mx-auto h-40 w-full object-contain transition-transform duration-300 group-hover:scale-105"
+            className="h-40 w-full object-contain transition-transform duration-300 group-hover:scale-105"
             onError={(e) => {
-              (e.currentTarget.parentElement as HTMLElement).style.display = "none";
+              e.currentTarget.style.visibility = "hidden";
             }}
           />
-        </div>
-      ) : null}
+        ) : (
+          <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
+            sem foto
+          </span>
+        )}
+      </div>
+
       <div className="flex items-start justify-between gap-2">
         <span className="rounded-md bg-secondary px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-secondary-foreground">
           {formatLine(p.line)}
