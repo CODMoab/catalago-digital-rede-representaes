@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/sheet";
 import {
   BELLIZ,
+  productImage,
   PAYOT,
   BRANDS,
   WHATSAPP_NUMBER,
