@@ -1,0 +1,134 @@
+{
+  "version": 1,
+  "sdk_version": "0.26.1",
+  "path": "/mcp",
+  "auth": {
+    "type": "none"
+  },
+  "mcp": {
+    "server": {
+      "name": "seu-catalogo-digital",
+      "version": "0.1.0",
+      "title": "Seu Catálogo Digital"
+    },
+    "tools": [
+      {
+        "name": "list_brands",
+        "title": "Listar marcas",
+        "description": "Lista as marcas representadas e a quantidade de produtos disponíveis em cada catálogo.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {}
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "list_product_lines",
+        "title": "Listar linhas de produtos",
+        "description": "Lista as linhas disponíveis em uma marca e a quantidade de produtos em cada linha.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "brand": {
+              "type": "string",
+              "enum": [
+                "belliz",
+                "payot"
+              ],
+              "description": "Marca do catálogo."
+            }
+          },
+          "required": [
+            "brand"
+          ],
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "search_products",
+        "title": "Buscar produtos",
+        "description": "Busca produtos por nome, código, EAN ou linha, com filtros opcionais de marca e linha.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "Nome, código, EAN ou trecho a procurar."
+            },
+            "brand": {
+              "type": "string",
+              "enum": [
+                "belliz",
+                "payot"
+              ],
+              "description": "Marca para filtrar."
+            },
+            "line": {
+              "type": "string",
+              "description": "Linha de produtos para filtrar."
+            },
+            "limit": {
+              "type": "integer",
+              "description": "Quantidade de resultados, de 1 a 50. O padrão é 20."
+            }
+          },
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "get_product",
+        "title": "Consultar produto",
+        "description": "Consulta um produto específico pelo código interno ou EAN dentro de uma marca.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "brand": {
+              "type": "string",
+              "enum": [
+                "belliz",
+                "payot"
+              ],
+              "description": "Marca do produto."
+            },
+            "codeOrEan": {
+              "type": "string",
+              "description": "Código interno ou código de barras EAN."
+            }
+          },
+          "required": [
+            "brand",
+            "codeOrEan"
+          ],
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      }
+    ]
+  }
+}
