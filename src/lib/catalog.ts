@@ -1,6 +1,8 @@
 import payotDataRaw from "@/data/payot.json";
 import bellizDataRaw from "@/data/belliz.json";
 import bellizImagesRaw from "@/data/belliz-images.json";
+import payotImagesRaw from "@/data/payot-images.json";
+
 
 export type BellizProduct = {
   code: string;
@@ -50,7 +52,11 @@ export const REP_NAME = "Representante Comercial";
 // Imagens oficiais dos produtos Belliz (bellizcompany.com.br)
 export const BELLIZ_IMAGES: Record<string, string> = bellizImagesRaw as Record<string, string>;
 
+// Imagens oficiais dos produtos Payot (payot.com.br)
+export const PAYOT_IMAGES: Record<string, string> = payotImagesRaw as Record<string, string>;
+
 export function productImage(brand: BrandId, code: string): string | null {
   if (brand === "belliz") return BELLIZ_IMAGES[code] ?? null;
-  return null;
+  return PAYOT_IMAGES[code] ?? null;
 }
+
