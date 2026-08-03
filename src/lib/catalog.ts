@@ -1,6 +1,8 @@
 import payotDataRaw from "@/data/payot.json";
 import bellizDataRaw from "@/data/belliz.json";
 import bellizImagesRaw from "@/data/belliz-images.json";
+import payotImagesRaw from "@/data/payot-images.json";
+
 
 export type BellizProduct = {
   code: string;
