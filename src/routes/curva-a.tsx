@@ -417,7 +417,12 @@ function CurvaAPage() {
                   {items.length} produtos · investimento planejado {currency(budgetNumber)}
                 </p>
                 <p className="mt-2 text-3xl font-bold text-primary">{currency(total)}</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Entrega <strong className="text-foreground">CIF</strong> (frete incluso) ·
+                  valores <strong className="text-foreground">sem impostos</strong>.
+                </p>
               </div>
+
               <div className="flex gap-2">
                 <Button variant="outline" onClick={() => setStep(0)}>
                   <RefreshCw className="mr-1 size-4" /> Refazer
