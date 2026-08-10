@@ -410,9 +410,11 @@ function CurvaAPage() {
           <div className="space-y-8">
             <div className="flex flex-wrap items-end justify-between gap-4 rounded-2xl border border-border bg-card p-6">
               <div>
-                <h2 className="text-2xl font-bold">Seu mix sugerido</h2>
+                <h2 className="text-2xl font-bold">
+                  Plano de sortimento {brand ? BRANDS[brand].name : ""}
+                </h2>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  {items.length} produtos · verba informada {currency(budgetNumber)}
+                  {items.length} produtos · investimento planejado {currency(budgetNumber)}
                 </p>
                 <p className="mt-2 text-3xl font-bold text-primary">{currency(total)}</p>
               </div>
