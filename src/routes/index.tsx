@@ -763,13 +763,16 @@ function QuoteDrawer({
     <Sheet open={!!brand} onOpenChange={(o) => !o && onClose()}>
       <SheetContent className="w-full sm:max-w-lg">
         <SheetHeader>
-          <SheetTitle>Pedido — {info.name}</SheetTitle>
+          <SheetTitle>Carrinho — {info.name}</SheetTitle>
         </SheetHeader>
         <div className="mt-4 flex h-[calc(100vh-8rem)] flex-col">
           <div className="flex-1 space-y-3 overflow-y-auto pr-1">
+            <p className="rounded-md border border-border bg-muted/50 p-2 text-[11px] text-muted-foreground">
+              Entrega <strong>CIF</strong> (frete incluso) · valores <strong>sem impostos</strong>.
+            </p>
             {entries.length === 0 && (
               <p className="text-sm text-muted-foreground">
-                Nenhum produto adicionado.
+                Seu carrinho está vazio.
               </p>
             )}
             {entries.map(([code, qty]) => {
@@ -785,22 +788,35 @@ function QuoteDrawer({
                     : (p as any).priceUnit
                   : (p as any).price;
               const coletivo = brand === "belliz" ? (p as any).coletivo || 1 : 1;
+              const img = productImage(brand, p.code);
               return (
                 <div
                   key={code}
                   className="rounded-lg border border-border p-3"
                 >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1">
+                  <div className="flex items-start gap-3">
+                    <div className="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-md bg-white">
+                      {img ? (
+                        <img
+                          src={img}
+                          alt={p.name}
+                          loading="lazy"
+                          className="size-16 object-contain"
+                        />
+                      ) : (
+                        <span className="text-[9px] uppercase text-muted-foreground">
+                          sem foto
+                        </span>
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
                       <p className="text-xs font-mono text-muted-foreground">
                         #{p.code}
                       </p>
-                      <p className="text-sm font-semibold">{p.name}</p>
+                      <p className="text-sm font-semibold leading-snug">{p.name}</p>
                       <p className="mt-1 text-xs text-muted-foreground">
-                        {qty} un × {currency(unit)} ={" "}
-                        <span className="font-semibold text-foreground">
-                          {currency(unit * qty)}
-                        </span>
+                        {currency(unit)} / un
+                        {brand === "belliz" && ` · coletivo de ${coletivo} un`}
                       </p>
                     </div>
                     <Button
@@ -811,28 +827,38 @@ function QuoteDrawer({
                       <Trash2 className="size-4 text-destructive" />
                     </Button>
                   </div>
-                  <div className="mt-2 flex items-center gap-1">
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="size-8"
-                      onClick={() =>
-                        setQty(brand, code, Math.max(0, qty - coletivo))
-                      }
-                    >
-                      <Minus className="size-3" />
-                    </Button>
-                    <span className="w-14 text-center text-sm font-semibold">
-                      {qty}
-                    </span>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="size-8"
-                      onClick={() => setQty(brand, code, qty + coletivo)}
-                    >
-                      <Plus className="size-3" />
-                    </Button>
+                  <div className="mt-2 flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="size-8"
+                        onClick={() =>
+                          setQty(brand, code, Math.max(0, qty - coletivo))
+                        }
+                      >
+                        <Minus className="size-3" />
+                      </Button>
+                      <span className="w-14 text-center text-sm font-semibold">
+                        {qty} un
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="size-8"
+                        onClick={() => setQty(brand, code, qty + coletivo)}
+                      >
+                        <Plus className="size-3" />
+                      </Button>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                        Total do item
+                      </p>
+                      <p className="text-sm font-bold text-primary">
+                        {currency(unit * qty)}
+                      </p>
+                    </div>
                   </div>
                 </div>
               );
@@ -841,15 +867,23 @@ function QuoteDrawer({
             {entries.length > 0 && (
               <div className="rounded-lg bg-muted p-3 text-sm">
                 <div className="flex justify-between">
+                  <span>Itens distintos</span>
+                  <span>{t.items}</span>
+                </div>
+                <div className="mt-1 flex justify-between">
                   <span>Unidades</span>
                   <span>{t.count}</span>
                 </div>
-                <div className="mt-1 flex justify-between text-base font-bold">
-                  <span>Total estimado</span>
+                <div className="mt-2 flex justify-between border-t border-border pt-2 text-base font-bold">
+                  <span>Total do pedido</span>
                   <span className="text-primary">{currency(t.total)}</span>
                 </div>
+                <p className="mt-1 text-[11px] font-normal text-muted-foreground">
+                  Entrega CIF · valores sem impostos.
+                </p>
               </div>
             )}
+
 
             <div className="space-y-3 pt-2">
               <div>
