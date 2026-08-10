@@ -181,7 +181,7 @@ function CurvaAPage() {
     if (!validate()) return;
     const { blob, fileName, list } = buildPdf();
     const msg =
-      `*Orçamento Curva A*\n` +
+      `*Plano de sortimento Curva A — ${brand ? BRANDS[brand].name : ""}*\n` +
       `Cliente: ${customer.name}\n` +
       (customer.phone ? `Telefone: ${customer.phone}\n` : "") +
       `Perfil: ${business ? BUSINESS_PRESETS[business].label : "-"}\n` +
@@ -196,11 +196,10 @@ function CurvaAPage() {
     );
   };
 
-
   const activeFocos = focos.length
-    ? focos
+    ? focos.filter((id) => brandFocuses.some((f) => f.id === id))
     : business
-      ? BUSINESS_PRESETS[business].focos
+      ? presetFocos(business)
       : [];
 
   return (
