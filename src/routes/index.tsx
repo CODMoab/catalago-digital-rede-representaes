@@ -373,7 +373,6 @@ function LandingView({
           </h1>
           <p className="mt-4 max-w-2xl text-base text-muted-foreground sm:text-lg">
             Monte seu pedido de cada marca e envie direto para o WhatsApp.
-            Preços atualizados de abril/26 — pedidos Belliz são por coletivo.
           </p>
           <p className="mt-3 max-w-2xl text-sm text-muted-foreground">
             Dentro de cada marca você também encontra o{" "}
