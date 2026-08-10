@@ -17,7 +17,7 @@ export type QuoteMeta = {
   title: string;
   customerName: string;
   customerPhone?: string;
-  notes?: string;
+  customerCnpj?: string;
   business?: string;
   publico?: string;
   budget?: number;
@@ -75,6 +75,7 @@ export function buildQuotePdf(lines: QuoteLine[], meta: QuoteMeta): Blob {
 
   const info: string[] = [`Nome: ${meta.customerName}`];
   if (meta.customerPhone) info.push(`Telefone: ${meta.customerPhone}`);
+  if (meta.customerCnpj) info.push(`CNPJ: ${meta.customerCnpj}`);
   if (meta.business) info.push(`Negócio: ${meta.business}`);
   if (meta.publico) info.push(`Público: ${meta.publico}`);
   if (typeof meta.budget === "number" && meta.budget > 0)
@@ -84,11 +85,6 @@ export function buildQuotePdf(lines: QuoteLine[], meta: QuoteMeta): Blob {
   for (const l of info) {
     doc.text(l, margin, y);
     y += 14;
-  }
-  if (meta.notes) {
-    const wrapped = doc.splitTextToSize(`Observações: ${meta.notes}`, pageW - margin * 2);
-    doc.text(wrapped, margin, y);
-    y += wrapped.length * 13;
   }
 
   const hasCurva = lines.some((l) => l.curva);
@@ -262,3 +258,14 @@ export async function shareQuotePdf(
   );
   return "downloaded";
 }
+
+export const onlyDigits = (v: string) => v.replace(/\D/g, "");
+
+export const formatCnpj = (v: string) => {
+  const d = onlyDigits(v).slice(0, 14);
+  return d
+    .replace(/^(\d{2})(\d)/, "$1.$2")
+    .replace(/^(\d{2})\.(\d{3})(\d)/, "$1.$2.$3")
+    .replace(/\.(\d{3})(\d)/, ".$1/$2")
+    .replace(/(\d{4})(\d)/, "$1-$2");
+};

@@ -18,7 +18,6 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
   Sheet,
@@ -41,6 +40,8 @@ import {
   downloadPdf,
   quoteFileName,
   shareQuotePdf,
+  onlyDigits,
+  formatCnpj,
   type QuoteLine,
   type QuoteMeta,
 } from "@/lib/quote-pdf";
@@ -85,7 +86,7 @@ function CatalogPage() {
   const [activeBrand, setActiveBrand] = useState<BrandId | null>(null);
   const [cart, setCart] = useState<Cart>(emptyCart);
   const [openQuote, setOpenQuote] = useState<BrandId | null>(null);
-  const [customer, setCustomer] = useState({ name: "", phone: "", notes: "" });
+  const [customer, setCustomer] = useState({ name: "", phone: "", cnpj: "" });
 
   const totals = useMemo(() => {
     const bellizItems = Object.entries(cart.belliz);
@@ -161,7 +162,15 @@ function CatalogPage() {
 
   const prepare = (brand: BrandId) => {
     if (!customer.name.trim()) {
-      toast.error("Informe seu nome antes de enviar.");
+      toast.error("Informe seu nome / loja antes de enviar.");
+      return null;
+    }
+    if (onlyDigits(customer.phone).length < 10) {
+      toast.error("Informe um telefone / WhatsApp válido.");
+      return null;
+    }
+    if (onlyDigits(customer.cnpj).length !== 14) {
+      toast.error("Informe um CNPJ válido (14 dígitos).");
       return null;
     }
     const lines = collectLines(brand);
@@ -173,7 +182,7 @@ function CatalogPage() {
       title: `Pedido — ${BRANDS[brand].name}`,
       customerName: customer.name.trim(),
       customerPhone: customer.phone,
-      notes: customer.notes,
+      customerCnpj: customer.cnpj,
     };
     const total = lines.reduce((s, l) => s + l.unitPrice * l.qty, 0);
     return { lines, meta, total, blob: buildQuotePdf(lines, meta), fileName: quoteFileName(meta) };
@@ -192,7 +201,7 @@ function CatalogPage() {
     const msg =
       `*Novo pedido — ${BRANDS[brand].name}*\n` +
       `Cliente: ${customer.name}\n` +
-      (customer.phone ? `Telefone: ${customer.phone}\n` : "") +
+      `Telefone: ${customer.phone}\n` + `CNPJ: ${customer.cnpj}\n` +
       `Itens: ${data.lines.length} · Total estimado: ${currency(data.total)}\n` +
       `Detalhamento completo no PDF em anexo.`;
     const result = await shareQuotePdf(data.blob, data.fileName, msg);
@@ -844,8 +853,8 @@ function QuoteDrawer({
     belliz: { count: number; total: number; items: number };
     payot: { count: number; total: number; items: number };
   };
-  customer: { name: string; phone: string; notes: string };
-  setCustomer: (v: { name: string; phone: string; notes: string }) => void;
+  customer: { name: string; phone: string; cnpj: string };
+  setCustomer: (v: { name: string; phone: string; cnpj: string }) => void;
   onSend: (b: BrandId) => void;
   onDownload: (b: BrandId) => void;
 }) {
@@ -999,7 +1008,7 @@ function QuoteDrawer({
                 />
               </div>
               <div>
-                <Label htmlFor="phone">Telefone / WhatsApp</Label>
+                <Label htmlFor="phone">Telefone / WhatsApp *</Label>
                 <Input
                   id="phone"
                   value={customer.phone}
@@ -1011,16 +1020,16 @@ function QuoteDrawer({
                 />
               </div>
               <div>
-                <Label htmlFor="notes">Observações</Label>
-                <Textarea
-                  id="notes"
-                  value={customer.notes}
+                <Label htmlFor="cnpj">CNPJ *</Label>
+                <Input
+                  id="cnpj"
+                  value={customer.cnpj}
                   onChange={(e) =>
-                    setCustomer({ ...customer, notes: e.target.value })
+                    setCustomer({ ...customer, cnpj: formatCnpj(e.target.value) })
                   }
-                  placeholder="Prazo, endereço, condições de pagamento…"
-                  maxLength={500}
-                  rows={3}
+                  placeholder="00.000.000/0000-00"
+                  inputMode="numeric"
+                  maxLength={18}
                 />
               </div>
             </div>

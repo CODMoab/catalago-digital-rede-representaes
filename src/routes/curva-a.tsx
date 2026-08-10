@@ -16,7 +16,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { BRANDS, REP_NAME, WHATSAPP_NUMBER, productImage, type BrandId } from "@/lib/catalog";
@@ -25,6 +24,8 @@ import {
   downloadPdf,
   quoteFileName,
   shareQuotePdf,
+  onlyDigits,
+  formatCnpj,
   type QuoteLine,
   type QuoteMeta,
 } from "@/lib/quote-pdf";
@@ -84,7 +85,7 @@ function CurvaAPage() {
   const [publico, setPublico] = useState<Publico>("intermediario");
   const [budget, setBudget] = useState("2000");
   const [items, setItems] = useState<SuggestedItem[] | null>(null);
-  const [customer, setCustomer] = useState({ name: "", phone: "", notes: "" });
+  const [customer, setCustomer] = useState({ name: "", phone: "", cnpj: "" });
 
   const budgetNumber = Number(budget.replace(/[^\d]/g, "")) || 0;
 
@@ -150,7 +151,7 @@ function CurvaAPage() {
       title: `Plano de sortimento Curva A · ${brand ? BRANDS[brand].name : ""}`.trim(),
       customerName: customer.name.trim() || "Cliente",
       customerPhone: customer.phone,
-      notes: customer.notes,
+      customerCnpj: customer.cnpj,
       business: business ? BUSINESS_PRESETS[business].label : undefined,
       publico: PUBLICO_LABEL[publico],
       budget: budgetNumber,
@@ -160,7 +161,15 @@ function CurvaAPage() {
 
   const validate = () => {
     if (!customer.name.trim()) {
-      toast.error("Informe seu nome antes de enviar.");
+      toast.error("Informe seu nome / loja antes de enviar.");
+      return false;
+    }
+    if (onlyDigits(customer.phone).length < 10) {
+      toast.error("Informe um telefone / WhatsApp válido.");
+      return false;
+    }
+    if (onlyDigits(customer.cnpj).length !== 14) {
+      toast.error("Informe um CNPJ válido (14 dígitos).");
       return false;
     }
     if ((items ?? []).length === 0) {
@@ -183,7 +192,7 @@ function CurvaAPage() {
     const msg =
       `*Plano de sortimento Curva A — ${brand ? BRANDS[brand].name : ""}*\n` +
       `Cliente: ${customer.name}\n` +
-      (customer.phone ? `Telefone: ${customer.phone}\n` : "") +
+      `Telefone: ${customer.phone}\n` + `CNPJ: ${customer.cnpj}\n` +
       `Perfil: ${business ? BUSINESS_PRESETS[business].label : "-"}\n` +
       `Itens: ${list.length} · Total: ${currency(total)}\n` +
       `Detalhamento completo no PDF em anexo.`;
@@ -534,32 +543,38 @@ function CurvaAPage() {
               <h3 className="text-lg font-semibold">Enviar orçamento</h3>
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
                 <div>
-                  <Label htmlFor="nome">Seu nome *</Label>
+                  <Label htmlFor="nome">Seu nome / loja *</Label>
                   <Input
                     id="nome"
                     value={customer.name}
                     maxLength={100}
+                    placeholder="Ex: Loja da Ana"
                     onChange={(e) => setCustomer((c) => ({ ...c, name: e.target.value }))}
                     className="mt-1"
                   />
                 </div>
                 <div>
-                  <Label htmlFor="tel">Telefone</Label>
+                  <Label htmlFor="tel">Telefone / WhatsApp *</Label>
                   <Input
                     id="tel"
                     value={customer.phone}
                     maxLength={20}
+                    placeholder="(71) 9 9999-9999"
                     onChange={(e) => setCustomer((c) => ({ ...c, phone: e.target.value }))}
                     className="mt-1"
                   />
                 </div>
                 <div className="sm:col-span-2">
-                  <Label htmlFor="obs">Observações</Label>
-                  <Textarea
-                    id="obs"
-                    value={customer.notes}
-                    maxLength={500}
-                    onChange={(e) => setCustomer((c) => ({ ...c, notes: e.target.value }))}
+                  <Label htmlFor="cnpj">CNPJ *</Label>
+                  <Input
+                    id="cnpj"
+                    value={customer.cnpj}
+                    maxLength={18}
+                    inputMode="numeric"
+                    placeholder="00.000.000/0000-00"
+                    onChange={(e) =>
+                      setCustomer((c) => ({ ...c, cnpj: formatCnpj(e.target.value) }))
+                    }
                     className="mt-1"
                   />
                 </div>
