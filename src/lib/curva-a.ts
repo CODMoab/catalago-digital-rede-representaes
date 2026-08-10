@@ -14,6 +14,7 @@ export type Publico = "popular" | "intermediario" | "premium";
 export type BusinessType = "salao" | "barbearia" | "loja" | "farmacia" | "revenda";
 
 export type Answers = {
+  brand: BrandId;
   business: BusinessType;
   focos: FocusId[];
   publico: Publico;
