@@ -147,7 +147,7 @@ function CurvaAPage() {
       curva: i.curva,
     }));
     const meta: QuoteMeta = {
-      title: "Orçamento Curva A",
+      title: `Plano de sortimento Curva A · ${brand ? BRANDS[brand].name : ""}`.trim(),
       customerName: customer.name.trim() || "Cliente",
       customerPhone: customer.phone,
       notes: customer.notes,
