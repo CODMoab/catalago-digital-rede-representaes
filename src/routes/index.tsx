@@ -33,8 +33,10 @@ import {
   BRANDS,
   WHATSAPP_NUMBER,
   REP_NAME,
+  applyCatalog,
   type BrandId,
 } from "@/lib/catalog";
+import { getCatalog } from "@/lib/catalog.functions";
 import {
   buildQuotePdf,
   downloadPdf,
@@ -51,6 +53,11 @@ import { cn } from "@/lib/utils";
 import { CatalogGallery } from "@/components/CatalogGallery";
 
 export const Route = createFileRoute("/")({
+  loader: async () => {
+    const { rows } = await getCatalog();
+    applyCatalog(rows);
+    return null;
+  },
   head: () => ({
     meta: [
       { title: "Catálogo Belliz & Payot — Pedido por WhatsApp" },
