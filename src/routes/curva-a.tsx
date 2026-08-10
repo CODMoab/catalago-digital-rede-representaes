@@ -544,32 +544,38 @@ function CurvaAPage() {
               <h3 className="text-lg font-semibold">Enviar orçamento</h3>
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
                 <div>
-                  <Label htmlFor="nome">Seu nome *</Label>
+                  <Label htmlFor="nome">Seu nome / loja *</Label>
                   <Input
                     id="nome"
                     value={customer.name}
                     maxLength={100}
+                    placeholder="Ex: Loja da Ana"
                     onChange={(e) => setCustomer((c) => ({ ...c, name: e.target.value }))}
                     className="mt-1"
                   />
                 </div>
                 <div>
-                  <Label htmlFor="tel">Telefone</Label>
+                  <Label htmlFor="tel">Telefone / WhatsApp *</Label>
                   <Input
                     id="tel"
                     value={customer.phone}
                     maxLength={20}
+                    placeholder="(71) 9 9999-9999"
                     onChange={(e) => setCustomer((c) => ({ ...c, phone: e.target.value }))}
                     className="mt-1"
                   />
                 </div>
                 <div className="sm:col-span-2">
-                  <Label htmlFor="obs">Observações</Label>
-                  <Textarea
-                    id="obs"
-                    value={customer.notes}
-                    maxLength={500}
-                    onChange={(e) => setCustomer((c) => ({ ...c, notes: e.target.value }))}
+                  <Label htmlFor="cnpj">CNPJ *</Label>
+                  <Input
+                    id="cnpj"
+                    value={customer.cnpj}
+                    maxLength={18}
+                    inputMode="numeric"
+                    placeholder="00.000.000/0000-00"
+                    onChange={(e) =>
+                      setCustomer((c) => ({ ...c, cnpj: formatCnpj(e.target.value) }))
+                    }
                     className="mt-1"
                   />
                 </div>
