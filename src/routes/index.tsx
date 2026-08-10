@@ -501,6 +501,25 @@ function BrandView({
         </Button>
       </div>
 
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-primary/30 bg-primary/5 p-5">
+        <div className="max-w-xl">
+          <p className="text-sm font-semibold">
+            Plano de sortimento Curva A · {info.name}
+          </p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            A Rede Representações monta com você o mix {info.name} de maior giro
+            dentro da sua verba, distribuído em curva ABC. Cada plano é exclusivo
+            desta marca — sem misturar indústrias no mesmo pedido.
+          </p>
+        </div>
+        <Button asChild size="lg" className="gap-2">
+          <Link to="/curva-a" search={{ marca: brand }}>
+            <BarChart3 className="size-4" />
+            Montar meu plano {info.name}
+          </Link>
+        </Button>
+      </div>
+
       {brand === "payot" && <CatalogGallery />}
 
       {/* Filters */}
