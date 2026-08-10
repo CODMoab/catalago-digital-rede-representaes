@@ -17,7 +17,7 @@ export type QuoteMeta = {
   title: string;
   customerName: string;
   customerPhone?: string;
-  notes?: string;
+  customerCnpj?: string;
   business?: string;
   publico?: string;
   budget?: number;
@@ -75,6 +75,7 @@ export function buildQuotePdf(lines: QuoteLine[], meta: QuoteMeta): Blob {
 
   const info: string[] = [`Nome: ${meta.customerName}`];
   if (meta.customerPhone) info.push(`Telefone: ${meta.customerPhone}`);
+  if (meta.customerCnpj) info.push(`CNPJ: ${meta.customerCnpj}`);
   if (meta.business) info.push(`Negócio: ${meta.business}`);
   if (meta.publico) info.push(`Público: ${meta.publico}`);
   if (typeof meta.budget === "number" && meta.budget > 0)
