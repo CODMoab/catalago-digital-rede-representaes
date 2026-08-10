@@ -77,7 +77,7 @@ const CURVA_STYLE: Record<"A" | "B" | "C", string> = {
 
 function CurvaAPage() {
   const { marca } = Route.useSearch();
-  const [brand, setBrand] = useState<BrandId | null>(marca ?? null);
+  const [brand, setBrand] = useState<BrandId | null>((marca as BrandId | null) ?? null);
   const [step, setStep] = useState(0);
   const [business, setBusiness] = useState<BusinessType | null>(null);
   const [focos, setFocos] = useState<FocusId[]>([]);
