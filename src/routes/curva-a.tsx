@@ -345,8 +345,8 @@ function CurvaAPage() {
 
         {step === 2 && (
           <StepShell
-            title="Qual o perfil do seu público?"
-            subtitle="Isso define a faixa de preço dos itens sugeridos."
+            title="Quem é o público que você atende?"
+            subtitle="Definimos a faixa de preço e o ticket médio ideal para esse consumidor."
           >
             <div className="grid gap-3">
               {(Object.keys(PUBLICO_LABEL) as Publico[]).map((p) => (
