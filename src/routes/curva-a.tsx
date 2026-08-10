@@ -226,19 +226,52 @@ function CurvaAPage() {
       <section className="border-b border-border/60 bg-gradient-to-b from-primary/10 to-transparent">
         <div className="mx-auto max-w-5xl px-4 py-12 sm:py-16">
           <span className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
-            <BarChart3 className="size-3" /> Consultoria de mix
+            <BarChart3 className="size-3" /> Inteligência de sortimento
           </span>
           <h1 className="mt-4 text-3xl font-bold tracking-tight sm:text-5xl">
-            Monte seu <span className="text-primary">orçamento Curva A</span>
+            Plano de sortimento{" "}
+            <span className="text-primary">
+              Curva A{brand ? ` · ${BRANDS[brand].name}` : ""}
+            </span>
           </h1>
           <p className="mt-3 max-w-2xl text-muted-foreground">
-            Não sabe por onde começar? Responda 4 perguntas rápidas e eu monto um mix de
-            produtos de maior giro, distribuído em curva ABC dentro da sua verba.
+            A Rede Representações trabalha ao seu lado: em 4 passos desenhamos o mix de
+            maior giro para o seu público, com a verba distribuída em curva ABC para
+            proteger sua margem e girar estoque mais rápido.
           </p>
+          {brand && (
+            <p className="mt-2 text-xs text-muted-foreground">
+              Cada plano é montado por marca — sem misturar {BRANDS[brand].name} com outra
+              indústria no mesmo pedido.
+            </p>
+          )}
         </div>
       </section>
 
       <main className="mx-auto max-w-5xl px-4 py-10">
+        {!brand ? (
+          <StepShell
+            title="Para qual marca vamos montar o plano?"
+            subtitle="O sortimento é montado por indústria — um pedido por marca."
+          >
+            <div className="grid gap-3 sm:grid-cols-2">
+              {(Object.keys(BRANDS) as BrandId[]).map((b) => (
+                <SelectCard
+                  key={b}
+                  active={false}
+                  title={BRANDS[b].name}
+                  hint={BRANDS[b].tagline}
+                  onClick={() => {
+                    setBrand(b);
+                    setStep(0);
+                    setFocos([]);
+                  }}
+                />
+              ))}
+            </div>
+          </StepShell>
+        ) : (
+          <>
         {step < 4 && (
           <div className="mb-8 flex items-center gap-2">
             {[0, 1, 2, 3].map((s) => (
@@ -255,8 +288,8 @@ function CurvaAPage() {
 
         {step === 0 && (
           <StepShell
-            title="Qual o tipo do seu negócio?"
-            subtitle="Uso isso para priorizar as categorias certas."
+            title="Como é o seu negócio?"
+            subtitle="Assim priorizamos as categorias que mais performam no seu formato de loja."
           >
             <div className="grid gap-3 sm:grid-cols-2">
               {(Object.keys(BUSINESS_PRESETS) as BusinessType[]).map((b) => (
@@ -267,7 +300,7 @@ function CurvaAPage() {
                   hint={BUSINESS_PRESETS[b].hint}
                   onClick={() => {
                     setBusiness(b);
-                    setFocos(BUSINESS_PRESETS[b].focos);
+                    setFocos(presetFocos(b));
                     setStep(1);
                   }}
                 />
@@ -278,11 +311,11 @@ function CurvaAPage() {
 
         {step === 1 && (
           <StepShell
-            title="O que você quer priorizar?"
-            subtitle="Já deixei marcado o mais comum para o seu perfil — ajuste se quiser."
+            title="Onde está a sua oportunidade de venda?"
+            subtitle="Já sugerimos as categorias de maior giro para o seu perfil — ajuste conforme a sua estratégia."
           >
             <div className="grid gap-3 sm:grid-cols-2">
-              {FOCUSES.map((f) => {
+              {brandFocuses.map((f) => {
                 const active = activeFocos.includes(f.id);
                 return (
                   <SelectCard
