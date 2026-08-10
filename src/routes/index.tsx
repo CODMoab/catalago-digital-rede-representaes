@@ -308,30 +308,122 @@ function SiteHeader({
               <SheetHeader>
                 <SheetTitle>Pedidos em andamento</SheetTitle>
               </SheetHeader>
-              <div className="mt-4 space-y-3">
+              <div className="mt-4 max-h-[calc(100vh-8rem)] space-y-5 overflow-y-auto pr-1">
                 {(["belliz", "payot"] as const).map((b) => {
                   const t = totals[b];
                   if (t.count === 0) return null;
+                  const entries = Object.entries(cart[b]);
                   return (
                     <div
                       key={b}
                       className="rounded-lg border border-border p-3"
                     >
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-between gap-2">
                         <div>
                           <p className="font-semibold">{BRANDS[b].name}</p>
                           <p className="text-xs text-muted-foreground">
-                            {t.items} produtos · {t.count} unid ·{" "}
-                            {currency(t.total)}
+                            {t.items} produtos · {t.count} unid
                           </p>
                         </div>
                         <Button size="sm" onClick={() => setOpenQuote(b)}>
                           Enviar
                         </Button>
                       </div>
+
+                      <div className="mt-3 space-y-2 border-t border-border pt-3">
+                        {entries.map(([code, qty]) => {
+                          const p =
+                            b === "belliz"
+                              ? BELLIZ.find((x) => x.code === code)
+                              : PAYOT.find((x) => x.code === code);
+                          if (!p) return null;
+                          const unit =
+                            b === "belliz"
+                              ? (p as any).priceColetivo && (p as any).coletivo
+                                ? (p as any).priceColetivo / (p as any).coletivo
+                                : (p as any).priceUnit
+                              : (p as any).price;
+                          const coletivo =
+                            b === "belliz" ? (p as any).coletivo || 1 : 1;
+                          const img = productImage(b, p.code);
+                          return (
+                            <div key={code} className="flex items-start gap-2">
+                              <div className="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-md bg-white">
+                                {img ? (
+                                  <img
+                                    src={img}
+                                    alt={p.name}
+                                    loading="lazy"
+                                    className="size-12 object-contain"
+                                  />
+                                ) : (
+                                  <span className="text-[8px] uppercase text-muted-foreground">
+                                    sem foto
+                                  </span>
+                                )}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="line-clamp-2 text-xs font-medium leading-snug">
+                                  {p.name}
+                                </p>
+                                <div className="mt-1 flex items-center gap-1">
+                                  <Button
+                                    variant="outline"
+                                    size="icon"
+                                    className="size-6"
+                                    onClick={() =>
+                                      setQty(b, code, Math.max(0, qty - coletivo))
+                                    }
+                                  >
+                                    <Minus className="size-3" />
+                                  </Button>
+                                  <span className="w-12 text-center text-xs font-semibold">
+                                    {qty} un
+                                  </span>
+                                  <Button
+                                    variant="outline"
+                                    size="icon"
+                                    className="size-6"
+                                    onClick={() => setQty(b, code, qty + coletivo)}
+                                  >
+                                    <Plus className="size-3" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="size-6"
+                                    onClick={() => setQty(b, code, 0)}
+                                  >
+                                    <Trash2 className="size-3 text-destructive" />
+                                  </Button>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-[10px] text-muted-foreground">
+                                  {currency(unit)} / un
+                                </p>
+                                <p className="text-sm font-bold text-primary">
+                                  {currency(unit * qty)}
+                                </p>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      <div className="mt-3 flex items-center justify-between border-t border-border pt-3 text-sm font-bold">
+                        <span>Total {BRANDS[b].name}</span>
+                        <span className="text-primary">{currency(t.total)}</span>
+                      </div>
                     </div>
                   );
                 })}
+                {totals.all > 0 && (
+                  <p className="text-[11px] text-muted-foreground">
+                    Entrega CIF (frete incluso) · valores sem impostos. Ajuste as
+                    quantidades aqui antes de enviar.
+                  </p>
+                )}
                 {totals.all === 0 && (
                   <p className="text-sm text-muted-foreground">
                     Você ainda não adicionou produtos. Escolha uma marca para
@@ -339,6 +431,7 @@ function SiteHeader({
                   </p>
                 )}
               </div>
+
             </SheetContent>
           </Sheet>
         </div>
