@@ -560,12 +560,19 @@ function BrandView({
         {filtered.length} produtos {line !== "Todas" && `em ${formatLine(line)}`}
       </p>
 
+      <p className="mb-4 rounded-lg border border-border bg-muted/50 p-3 text-xs text-muted-foreground">
+        <strong className="text-foreground">Condições:</strong> entrega{" "}
+        <strong className="text-foreground">CIF</strong> (frete incluso) e valores{" "}
+        <strong className="text-foreground">sem impostos</strong>.
+      </p>
+
       {brand === "belliz" && (
         <p className="mb-4 rounded-lg border border-primary/30 bg-primary/5 p-3 text-xs text-foreground">
           <strong>Venda por coletivo:</strong> as quantidades são múltiplas da
           embalagem coletiva de cada item (indicado no card).
         </p>
       )}
+
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {visible.map((p) => (
