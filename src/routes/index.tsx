@@ -41,6 +41,8 @@ import {
   downloadPdf,
   quoteFileName,
   shareQuotePdf,
+  onlyDigits,
+  formatCnpj,
   type QuoteLine,
   type QuoteMeta,
 } from "@/lib/quote-pdf";
