@@ -76,6 +76,8 @@ const CURVA_STYLE: Record<"A" | "B" | "C", string> = {
 };
 
 function CurvaAPage() {
+  const { marca } = Route.useSearch();
+  const [brand, setBrand] = useState<BrandId | null>(marca ?? null);
   const [step, setStep] = useState(0);
   const [business, setBusiness] = useState<BusinessType | null>(null);
   const [focos, setFocos] = useState<FocusId[]>([]);
@@ -86,11 +88,20 @@ function CurvaAPage() {
 
   const budgetNumber = Number(budget.replace(/[^\d]/g, "")) || 0;
 
+  const brandFocuses = useMemo(
+    () => (brand ? FOCUSES.filter((f) => f.brand === brand) : []),
+    [brand],
+  );
+
+  const presetFocos = (b: BusinessType) =>
+    BUSINESS_PRESETS[b].focos.filter((id) => brandFocuses.some((f) => f.id === id));
+
   const generate = () => {
-    if (!business) return;
+    if (!business || !brand) return;
     const answers: Answers = {
+      brand,
       business,
-      focos: focos.length ? focos : BUSINESS_PRESETS[business].focos,
+      focos: focos.length ? focos : presetFocos(business),
       publico,
       budget: budgetNumber,
     };
