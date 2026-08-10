@@ -86,7 +86,7 @@ function CurvaAPage() {
   const [publico, setPublico] = useState<Publico>("intermediario");
   const [budget, setBudget] = useState("2000");
   const [items, setItems] = useState<SuggestedItem[] | null>(null);
-  const [customer, setCustomer] = useState({ name: "", phone: "", notes: "" });
+  const [customer, setCustomer] = useState({ name: "", phone: "", cnpj: "" });
 
   const budgetNumber = Number(budget.replace(/[^\d]/g, "")) || 0;
 
@@ -152,7 +152,7 @@ function CurvaAPage() {
       title: `Plano de sortimento Curva A · ${brand ? BRANDS[brand].name : ""}`.trim(),
       customerName: customer.name.trim() || "Cliente",
       customerPhone: customer.phone,
-      notes: customer.notes,
+      customerCnpj: customer.cnpj,
       business: business ? BUSINESS_PRESETS[business].label : undefined,
       publico: PUBLICO_LABEL[publico],
       budget: budgetNumber,
@@ -162,7 +162,15 @@ function CurvaAPage() {
 
   const validate = () => {
     if (!customer.name.trim()) {
-      toast.error("Informe seu nome antes de enviar.");
+      toast.error("Informe seu nome / loja antes de enviar.");
+      return false;
+    }
+    if (onlyDigits(customer.phone).length < 10) {
+      toast.error("Informe um telefone / WhatsApp válido.");
+      return false;
+    }
+    if (onlyDigits(customer.cnpj).length !== 14) {
+      toast.error("Informe um CNPJ válido (14 dígitos).");
       return false;
     }
     if ((items ?? []).length === 0) {
