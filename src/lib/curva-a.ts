@@ -245,9 +245,13 @@ export function buildCurvaA(answers: Answers): {
   total: number;
   budget: number;
 } {
-  const focos = answers.focos.length
+  const brandFocuses = FOCUSES.filter((f) => f.brand === answers.brand).map((f) => f.id);
+  const requested = answers.focos.length
     ? answers.focos
     : BUSINESS_PRESETS[answers.business].focos;
+  // Regra: o mix nunca mistura marcas — só entram focos da marca escolhida.
+  const focos = requested.filter((id) => brandFocuses.includes(id));
+  if (focos.length === 0) focos.push(...brandFocuses);
   const budget = Math.max(0, answers.budget);
   const perFocus = budget / focos.length;
 
