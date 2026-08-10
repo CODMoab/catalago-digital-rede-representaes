@@ -18,7 +18,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { BRANDS, REP_NAME, WHATSAPP_NUMBER, productImage, type BrandId } from "@/lib/catalog";
+import { BRANDS, REP_NAME, WHATSAPP_NUMBER, applyCatalog, productImage, type BrandId } from "@/lib/catalog";
+import { getCatalog } from "@/lib/catalog.functions";
 import {
   buildQuotePdf,
   downloadPdf,
@@ -46,6 +47,11 @@ export const Route = createFileRoute("/curva-a")({
   validateSearch: (search: Record<string, unknown>) => ({
     marca: search.marca === "payot" || search.marca === "belliz" ? search.marca : undefined,
   }),
+  loader: async () => {
+    const { rows } = await getCatalog();
+    applyCatalog(rows);
+    return null;
+  },
   head: () => ({
     meta: [
       { title: "Plano de sortimento Curva A — Belliz & Payot" },
