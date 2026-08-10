@@ -19,7 +19,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { BRANDS, REP_NAME, WHATSAPP_NUMBER, productImage } from "@/lib/catalog";
+import { BRANDS, REP_NAME, WHATSAPP_NUMBER, productImage, type BrandId } from "@/lib/catalog";
 import {
   buildQuotePdf,
   downloadPdf,
@@ -42,19 +42,22 @@ import {
 } from "@/lib/curva-a";
 
 export const Route = createFileRoute("/curva-a")({
+  validateSearch: (search: Record<string, unknown>) => ({
+    marca: search.marca === "payot" || search.marca === "belliz" ? search.marca : undefined,
+  }),
   head: () => ({
     meta: [
-      { title: "Montar orçamento Curva A — Belliz & Payot" },
+      { title: "Plano de sortimento Curva A — Belliz & Payot" },
       {
         name: "description",
         content:
-          "Responda 4 perguntas sobre o seu negócio e receba um mix de produtos Curva A dentro da sua verba, pronto para enviar por WhatsApp.",
+          "Estratégia de sortimento por marca: em 4 passos a Rede Representações monta o mix de maior giro dentro da sua verba, pronto para enviar por WhatsApp.",
       },
-      { property: "og:title", content: "Montar orçamento Curva A" },
+      { property: "og:title", content: "Plano de sortimento Curva A" },
       {
         property: "og:description",
         content:
-          "Mix inteligente de produtos Belliz e Payot dentro da sua verba, com curva ABC e envio direto no WhatsApp.",
+          "Mix estratégico Belliz ou Payot dentro da sua verba, com curva ABC e envio direto no WhatsApp.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -73,6 +76,8 @@ const CURVA_STYLE: Record<"A" | "B" | "C", string> = {
 };
 
 function CurvaAPage() {
+  const { marca } = Route.useSearch();
+  const [brand, setBrand] = useState<BrandId | null>(marca ?? null);
   const [step, setStep] = useState(0);
   const [business, setBusiness] = useState<BusinessType | null>(null);
   const [focos, setFocos] = useState<FocusId[]>([]);
@@ -83,11 +88,20 @@ function CurvaAPage() {
 
   const budgetNumber = Number(budget.replace(/[^\d]/g, "")) || 0;
 
+  const brandFocuses = useMemo(
+    () => (brand ? FOCUSES.filter((f) => f.brand === brand) : []),
+    [brand],
+  );
+
+  const presetFocos = (b: BusinessType) =>
+    BUSINESS_PRESETS[b].focos.filter((id) => brandFocuses.some((f) => f.id === id));
+
   const generate = () => {
-    if (!business) return;
+    if (!business || !brand) return;
     const answers: Answers = {
+      brand,
       business,
-      focos: focos.length ? focos : BUSINESS_PRESETS[business].focos,
+      focos: focos.length ? focos : presetFocos(business),
       publico,
       budget: budgetNumber,
     };
@@ -133,7 +147,7 @@ function CurvaAPage() {
       curva: i.curva,
     }));
     const meta: QuoteMeta = {
-      title: "Orçamento Curva A",
+      title: `Plano de sortimento Curva A · ${brand ? BRANDS[brand].name : ""}`.trim(),
       customerName: customer.name.trim() || "Cliente",
       customerPhone: customer.phone,
       notes: customer.notes,
@@ -167,7 +181,7 @@ function CurvaAPage() {
     if (!validate()) return;
     const { blob, fileName, list } = buildPdf();
     const msg =
-      `*Orçamento Curva A*\n` +
+      `*Plano de sortimento Curva A — ${brand ? BRANDS[brand].name : ""}*\n` +
       `Cliente: ${customer.name}\n` +
       (customer.phone ? `Telefone: ${customer.phone}\n` : "") +
       `Perfil: ${business ? BUSINESS_PRESETS[business].label : "-"}\n` +
@@ -182,11 +196,10 @@ function CurvaAPage() {
     );
   };
 
-
   const activeFocos = focos.length
-    ? focos
+    ? focos.filter((id) => brandFocuses.some((f) => f.id === id))
     : business
-      ? BUSINESS_PRESETS[business].focos
+      ? presetFocos(business)
       : [];
 
   return (
@@ -213,19 +226,52 @@ function CurvaAPage() {
       <section className="border-b border-border/60 bg-gradient-to-b from-primary/10 to-transparent">
         <div className="mx-auto max-w-5xl px-4 py-12 sm:py-16">
           <span className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
-            <BarChart3 className="size-3" /> Consultoria de mix
+            <BarChart3 className="size-3" /> Inteligência de sortimento
           </span>
           <h1 className="mt-4 text-3xl font-bold tracking-tight sm:text-5xl">
-            Monte seu <span className="text-primary">orçamento Curva A</span>
+            Plano de sortimento{" "}
+            <span className="text-primary">
+              Curva A{brand ? ` · ${BRANDS[brand].name}` : ""}
+            </span>
           </h1>
           <p className="mt-3 max-w-2xl text-muted-foreground">
-            Não sabe por onde começar? Responda 4 perguntas rápidas e eu monto um mix de
-            produtos de maior giro, distribuído em curva ABC dentro da sua verba.
+            A Rede Representações trabalha ao seu lado: em 4 passos desenhamos o mix de
+            maior giro para o seu público, com a verba distribuída em curva ABC para
+            proteger sua margem e girar estoque mais rápido.
           </p>
+          {brand && (
+            <p className="mt-2 text-xs text-muted-foreground">
+              Cada plano é montado por marca — sem misturar {BRANDS[brand].name} com outra
+              indústria no mesmo pedido.
+            </p>
+          )}
         </div>
       </section>
 
       <main className="mx-auto max-w-5xl px-4 py-10">
+        {!brand ? (
+          <StepShell
+            title="Para qual marca vamos montar o plano?"
+            subtitle="O sortimento é montado por indústria — um pedido por marca."
+          >
+            <div className="grid gap-3 sm:grid-cols-2">
+              {(Object.keys(BRANDS) as BrandId[]).map((b) => (
+                <SelectCard
+                  key={b}
+                  active={false}
+                  title={BRANDS[b].name}
+                  hint={BRANDS[b].tagline}
+                  onClick={() => {
+                    setBrand(b);
+                    setStep(0);
+                    setFocos([]);
+                  }}
+                />
+              ))}
+            </div>
+          </StepShell>
+        ) : (
+          <>
         {step < 4 && (
           <div className="mb-8 flex items-center gap-2">
             {[0, 1, 2, 3].map((s) => (
@@ -242,8 +288,8 @@ function CurvaAPage() {
 
         {step === 0 && (
           <StepShell
-            title="Qual o tipo do seu negócio?"
-            subtitle="Uso isso para priorizar as categorias certas."
+            title="Como é o seu negócio?"
+            subtitle="Assim priorizamos as categorias que mais performam no seu formato de loja."
           >
             <div className="grid gap-3 sm:grid-cols-2">
               {(Object.keys(BUSINESS_PRESETS) as BusinessType[]).map((b) => (
@@ -254,7 +300,7 @@ function CurvaAPage() {
                   hint={BUSINESS_PRESETS[b].hint}
                   onClick={() => {
                     setBusiness(b);
-                    setFocos(BUSINESS_PRESETS[b].focos);
+                    setFocos(presetFocos(b));
                     setStep(1);
                   }}
                 />
@@ -265,11 +311,11 @@ function CurvaAPage() {
 
         {step === 1 && (
           <StepShell
-            title="O que você quer priorizar?"
-            subtitle="Já deixei marcado o mais comum para o seu perfil — ajuste se quiser."
+            title="Onde está a sua oportunidade de venda?"
+            subtitle="Já sugerimos as categorias de maior giro para o seu perfil — ajuste conforme a sua estratégia."
           >
             <div className="grid gap-3 sm:grid-cols-2">
-              {FOCUSES.map((f) => {
+              {brandFocuses.map((f) => {
                 const active = activeFocos.includes(f.id);
                 return (
                   <SelectCard
@@ -299,8 +345,8 @@ function CurvaAPage() {
 
         {step === 2 && (
           <StepShell
-            title="Qual o perfil do seu público?"
-            subtitle="Isso define a faixa de preço dos itens sugeridos."
+            title="Quem é o público que você atende?"
+            subtitle="Definimos a faixa de preço e o ticket médio ideal para esse consumidor."
           >
             <div className="grid gap-3">
               {(Object.keys(PUBLICO_LABEL) as Publico[]).map((p) => (
@@ -321,8 +367,8 @@ function CurvaAPage() {
 
         {step === 3 && (
           <StepShell
-            title="Quanto você quer investir neste pedido?"
-            subtitle="Vou distribuir a verba entre as categorias escolhidas."
+            title="Qual investimento você quer aplicar nesta compra?"
+            subtitle="Distribuímos a verba entre as categorias escolhidas priorizando o que mais gira."
           >
             <div className="max-w-sm">
               <Label htmlFor="verba">Verba (R$)</Label>
@@ -351,7 +397,7 @@ function CurvaAPage() {
             <StepNav
               onBack={() => setStep(2)}
               onNext={generate}
-              nextLabel="Gerar meu mix Curva A"
+              nextLabel="Montar meu plano Curva A"
               disabled={budgetNumber < 100}
             />
             {budgetNumber < 100 && (
@@ -364,9 +410,11 @@ function CurvaAPage() {
           <div className="space-y-8">
             <div className="flex flex-wrap items-end justify-between gap-4 rounded-2xl border border-border bg-card p-6">
               <div>
-                <h2 className="text-2xl font-bold">Seu mix sugerido</h2>
+                <h2 className="text-2xl font-bold">
+                  Plano de sortimento {brand ? BRANDS[brand].name : ""}
+                </h2>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  {items.length} produtos · verba informada {currency(budgetNumber)}
+                  {items.length} produtos · investimento planejado {currency(budgetNumber)}
                 </p>
                 <p className="mt-2 text-3xl font-bold text-primary">{currency(total)}</p>
               </div>
@@ -529,6 +577,8 @@ function CurvaAPage() {
 
             </div>
           </div>
+        )}
+          </>
         )}
       </main>
     </div>

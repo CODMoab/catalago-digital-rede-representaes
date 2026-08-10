@@ -375,14 +375,14 @@ function LandingView({
             Monte seu pedido de cada marca e envie direto para o WhatsApp.
             Preços atualizados de abril/26 — pedidos Belliz são por coletivo.
           </p>
-          <div className="mt-8">
-            <Button asChild size="lg" className="gap-2">
-              <Link to="/curva-a">
-                <BarChart3 className="size-4" />
-                Não sabe o que pedir? Monte seu mix Curva A
-              </Link>
-            </Button>
-          </div>
+          <p className="mt-3 max-w-2xl text-sm text-muted-foreground">
+            Dentro de cada marca você também encontra o{" "}
+            <span className="font-semibold text-foreground">
+              plano de sortimento Curva A
+            </span>
+            : a Rede Representações desenha com você o mix de maior giro dentro
+            da verba, marca a marca.
+          </p>
         </div>
       </section>
 
@@ -498,6 +498,25 @@ function BrandView({
         >
           <MessageCircle className="size-4" />
           Enviar pedido {t.count > 0 && `(${currency(t.total)})`}
+        </Button>
+      </div>
+
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-primary/30 bg-primary/5 p-5">
+        <div className="max-w-xl">
+          <p className="text-sm font-semibold">
+            Plano de sortimento Curva A · {info.name}
+          </p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            A Rede Representações monta com você o mix {info.name} de maior giro
+            dentro da sua verba, distribuído em curva ABC. Cada plano é exclusivo
+            desta marca — sem misturar indústrias no mesmo pedido.
+          </p>
+        </div>
+        <Button asChild size="lg" className="gap-2">
+          <Link to="/curva-a" search={{ marca: brand }}>
+            <BarChart3 className="size-4" />
+            Montar meu plano {info.name}
+          </Link>
         </Button>
       </div>
 
