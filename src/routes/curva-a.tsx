@@ -19,7 +19,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { BRANDS, REP_NAME, WHATSAPP_NUMBER, productImage } from "@/lib/catalog";
+import { BRANDS, REP_NAME, WHATSAPP_NUMBER, productImage, type BrandId } from "@/lib/catalog";
 import {
   buildQuotePdf,
   downloadPdf,
