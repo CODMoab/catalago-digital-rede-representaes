@@ -16,7 +16,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { BRANDS, REP_NAME, WHATSAPP_NUMBER, productImage, type BrandId } from "@/lib/catalog";
@@ -193,7 +192,7 @@ function CurvaAPage() {
     const msg =
       `*Plano de sortimento Curva A — ${brand ? BRANDS[brand].name : ""}*\n` +
       `Cliente: ${customer.name}\n` +
-      (customer.phone ? `Telefone: ${customer.phone}\n` : "") +
+      `Telefone: ${customer.phone}\n` + `CNPJ: ${customer.cnpj}\n` +
       `Perfil: ${business ? BUSINESS_PRESETS[business].label : "-"}\n` +
       `Itens: ${list.length} · Total: ${currency(total)}\n` +
       `Detalhamento completo no PDF em anexo.`;

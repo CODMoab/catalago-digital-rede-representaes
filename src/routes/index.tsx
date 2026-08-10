@@ -201,7 +201,7 @@ function CatalogPage() {
     const msg =
       `*Novo pedido — ${BRANDS[brand].name}*\n` +
       `Cliente: ${customer.name}\n` +
-      (customer.phone ? `Telefone: ${customer.phone}\n` : "") +
+      `Telefone: ${customer.phone}\n` + `CNPJ: ${customer.cnpj}\n` +
       `Itens: ${data.lines.length} · Total estimado: ${currency(data.total)}\n` +
       `Detalhamento completo no PDF em anexo.`;
     const result = await shareQuotePdf(data.blob, data.fileName, msg);
