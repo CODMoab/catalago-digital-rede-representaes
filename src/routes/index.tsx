@@ -18,7 +18,6 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
   Sheet,
@@ -854,8 +853,8 @@ function QuoteDrawer({
     belliz: { count: number; total: number; items: number };
     payot: { count: number; total: number; items: number };
   };
-  customer: { name: string; phone: string; notes: string };
-  setCustomer: (v: { name: string; phone: string; notes: string }) => void;
+  customer: { name: string; phone: string; cnpj: string };
+  setCustomer: (v: { name: string; phone: string; cnpj: string }) => void;
   onSend: (b: BrandId) => void;
   onDownload: (b: BrandId) => void;
 }) {
