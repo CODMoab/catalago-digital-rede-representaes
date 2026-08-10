@@ -671,21 +671,30 @@ function ProductCard({
 
       <div className="mt-3 flex items-end justify-between">
         <div>
-          <p className="text-lg font-bold text-primary">{currency(unitPrice)}</p>
           {isBelliz ? (
-            <p className="text-[11px] text-muted-foreground">
-              coletivo de {coletivo} un ·{" "}
-              {currency(p.priceColetivo ?? p.priceUnit * coletivo)}
-            </p>
-          ) : p.priceFull && p.priceFull > p.price ? (
-            <p className="text-[11px] text-muted-foreground line-through">
-              {currency(p.priceFull)}
-            </p>
+            <>
+              <p className="text-lg font-bold text-primary">
+                {currency(p.priceColetivo ?? p.priceUnit * coletivo)}
+              </p>
+              <p className="text-[11px] text-muted-foreground">
+                coletivo com {coletivo} un · {currency(unitPrice)} / unidade
+              </p>
+            </>
           ) : (
-            <p className="text-[11px] text-muted-foreground">preço unitário</p>
+            <>
+              <p className="text-lg font-bold text-primary">{currency(unitPrice)}</p>
+              {p.priceFull && p.priceFull > p.price ? (
+                <p className="text-[11px] text-muted-foreground line-through">
+                  {currency(p.priceFull)}
+                </p>
+              ) : (
+                <p className="text-[11px] text-muted-foreground">preço unitário</p>
+              )}
+            </>
           )}
         </div>
       </div>
+
 
       <div className="mt-4">
         {qty === 0 ? (
