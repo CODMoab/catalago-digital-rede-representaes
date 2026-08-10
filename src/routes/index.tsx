@@ -375,14 +375,14 @@ function LandingView({
             Monte seu pedido de cada marca e envie direto para o WhatsApp.
             Preços atualizados de abril/26 — pedidos Belliz são por coletivo.
           </p>
-          <div className="mt-8">
-            <Button asChild size="lg" className="gap-2">
-              <Link to="/curva-a">
-                <BarChart3 className="size-4" />
-                Não sabe o que pedir? Monte seu mix Curva A
-              </Link>
-            </Button>
-          </div>
+          <p className="mt-3 max-w-2xl text-sm text-muted-foreground">
+            Dentro de cada marca você também encontra o{" "}
+            <span className="font-semibold text-foreground">
+              plano de sortimento Curva A
+            </span>
+            : a Rede Representações desenha com você o mix de maior giro dentro
+            da verba, marca a marca.
+          </p>
         </div>
       </section>
 
