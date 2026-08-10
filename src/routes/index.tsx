@@ -1009,7 +1009,7 @@ function QuoteDrawer({
                 />
               </div>
               <div>
-                <Label htmlFor="phone">Telefone / WhatsApp</Label>
+                <Label htmlFor="phone">Telefone / WhatsApp *</Label>
                 <Input
                   id="phone"
                   value={customer.phone}
@@ -1021,16 +1021,16 @@ function QuoteDrawer({
                 />
               </div>
               <div>
-                <Label htmlFor="notes">Observações</Label>
-                <Textarea
-                  id="notes"
-                  value={customer.notes}
+                <Label htmlFor="cnpj">CNPJ *</Label>
+                <Input
+                  id="cnpj"
+                  value={customer.cnpj}
                   onChange={(e) =>
-                    setCustomer({ ...customer, notes: e.target.value })
+                    setCustomer({ ...customer, cnpj: formatCnpj(e.target.value) })
                   }
-                  placeholder="Prazo, endereço, condições de pagamento…"
-                  maxLength={500}
-                  rows={3}
+                  placeholder="00.000.000/0000-00"
+                  inputMode="numeric"
+                  maxLength={18}
                 />
               </div>
             </div>
