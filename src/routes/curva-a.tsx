@@ -42,19 +42,22 @@ import {
 } from "@/lib/curva-a";
 
 export const Route = createFileRoute("/curva-a")({
+  validateSearch: (search: Record<string, unknown>) => ({
+    marca: search.marca === "payot" || search.marca === "belliz" ? search.marca : undefined,
+  }),
   head: () => ({
     meta: [
-      { title: "Montar orçamento Curva A — Belliz & Payot" },
+      { title: "Plano de sortimento Curva A — Belliz & Payot" },
       {
         name: "description",
         content:
-          "Responda 4 perguntas sobre o seu negócio e receba um mix de produtos Curva A dentro da sua verba, pronto para enviar por WhatsApp.",
+          "Estratégia de sortimento por marca: em 4 passos a Rede Representações monta o mix de maior giro dentro da sua verba, pronto para enviar por WhatsApp.",
       },
-      { property: "og:title", content: "Montar orçamento Curva A" },
+      { property: "og:title", content: "Plano de sortimento Curva A" },
       {
         property: "og:description",
         content:
-          "Mix inteligente de produtos Belliz e Payot dentro da sua verba, com curva ABC e envio direto no WhatsApp.",
+          "Mix estratégico Belliz ou Payot dentro da sua verba, com curva ABC e envio direto no WhatsApp.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
