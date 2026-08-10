@@ -576,6 +576,8 @@ function CurvaAPage() {
             </div>
           </div>
         )}
+          </>
+        )}
       </main>
     </div>
   );
