@@ -367,8 +367,8 @@ function CurvaAPage() {
 
         {step === 3 && (
           <StepShell
-            title="Quanto você quer investir neste pedido?"
-            subtitle="Vou distribuir a verba entre as categorias escolhidas."
+            title="Qual investimento você quer aplicar nesta compra?"
+            subtitle="Distribuímos a verba entre as categorias escolhidas priorizando o que mais gira."
           >
             <div className="max-w-sm">
               <Label htmlFor="verba">Verba (R$)</Label>
