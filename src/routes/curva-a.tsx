@@ -4,6 +4,8 @@ import {
   ArrowLeft,
   BarChart3,
   Check,
+  FileDown,
+
   MessageCircle,
   Minus,
   Plus,
@@ -18,6 +20,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { BRANDS, REP_NAME, WHATSAPP_NUMBER, productImage } from "@/lib/catalog";
+import {
+  buildQuotePdf,
+  downloadPdf,
+  quoteFileName,
+  shareQuotePdf,
+  type QuoteLine,
+  type QuoteMeta,
+} from "@/lib/quote-pdf";
+
 import {
   BUSINESS_PRESETS,
   FOCUSES,
@@ -109,52 +120,68 @@ function CurvaAPage() {
   const removeItem = (code: string, brand: string) =>
     setItems((prev) => (prev ?? []).filter((i) => !(i.code === code && i.brand === brand)));
 
-  const send = () => {
+  const buildPdf = () => {
+    const list = items ?? [];
+    const lines: QuoteLine[] = list.map((i) => ({
+      brand: BRANDS[i.brand].name,
+      code: i.code,
+      name: i.name,
+      line: i.line,
+      pack: i.packSize,
+      qty: i.qty,
+      unitPrice: i.unitPrice,
+      curva: i.curva,
+    }));
+    const meta: QuoteMeta = {
+      title: "Orçamento Curva A",
+      customerName: customer.name.trim() || "Cliente",
+      customerPhone: customer.phone,
+      notes: customer.notes,
+      business: business ? BUSINESS_PRESETS[business].label : undefined,
+      publico: PUBLICO_LABEL[publico],
+      budget: budgetNumber,
+    };
+    return { blob: buildQuotePdf(lines, meta), fileName: quoteFileName(meta), list };
+  };
+
+  const validate = () => {
     if (!customer.name.trim()) {
       toast.error("Informe seu nome antes de enviar.");
-      return;
+      return false;
     }
-    const list = items ?? [];
-    if (list.length === 0) {
+    if ((items ?? []).length === 0) {
       toast.error("Seu mix está vazio.");
-      return;
+      return false;
     }
-    const byBrand = (["belliz", "payot"] as const).map((b) => ({
-      brand: b,
-      list: list.filter((i) => i.brand === b),
-    }));
-    const blocks = byBrand
-      .filter((g) => g.list.length > 0)
-      .map(
-        (g) =>
-          `*${BRANDS[g.brand].name}*\n` +
-          g.list
-            .map(
-              (i) =>
-                `• (${i.curva}) [${i.code}] ${i.qty}x ${i.name} — ${currency(i.unitPrice)} un = ${currency(i.unitPrice * i.qty)}`,
-            )
-            .join("\n"),
-      );
-
-    const msg =
-      `*Orçamento Curva A*\n\n` +
-      `*Perfil:* ${business ? BUSINESS_PRESETS[business].label : "-"}\n` +
-      `*Público:* ${PUBLICO_LABEL[publico]}\n` +
-      `*Verba informada:* ${currency(budgetNumber)}\n\n` +
-      `${blocks.join("\n\n")}\n\n` +
-      `*Total do mix:* ${currency(total)}\n` +
-      `*Itens:* ${list.length}\n\n` +
-      `*Cliente:* ${customer.name}\n` +
-      (customer.phone ? `*Telefone:* ${customer.phone}\n` : "") +
-      (customer.notes ? `*Observações:* ${customer.notes}\n` : "");
-
-    window.open(
-      `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(msg)}`,
-      "_blank",
-      "noopener",
-    );
-    toast.success("Abrindo WhatsApp com seu orçamento…");
+    return true;
   };
+
+  const download = () => {
+    if (!validate()) return;
+    const { blob, fileName } = buildPdf();
+    downloadPdf(blob, fileName);
+    toast.success("PDF do orçamento baixado.");
+  };
+
+  const send = async () => {
+    if (!validate()) return;
+    const { blob, fileName, list } = buildPdf();
+    const msg =
+      `*Orçamento Curva A*\n` +
+      `Cliente: ${customer.name}\n` +
+      (customer.phone ? `Telefone: ${customer.phone}\n` : "") +
+      `Perfil: ${business ? BUSINESS_PRESETS[business].label : "-"}\n` +
+      `Itens: ${list.length} · Total: ${currency(total)}\n` +
+      `Detalhamento completo no PDF em anexo.`;
+
+    const result = await shareQuotePdf(blob, fileName, msg);
+    toast.success(
+      result === "shared"
+        ? "Escolha o WhatsApp para enviar o PDF."
+        : "PDF baixado — anexe no WhatsApp que abrimos para você.",
+    );
+  };
+
 
   const activeFocos = focos.length
     ? focos
@@ -485,9 +512,21 @@ function CurvaAPage() {
                 </div>
               </div>
               <Button className="mt-4 w-full gap-2" size="lg" onClick={send}>
-                <MessageCircle className="size-4" /> Enviar no WhatsApp ·{" "}
+                <MessageCircle className="size-4" /> Enviar PDF no WhatsApp ·{" "}
                 {currency(total)}
               </Button>
+              <Button
+                variant="outline"
+                className="mt-2 w-full gap-2"
+                onClick={download}
+              >
+                <FileDown className="size-4" /> Baixar orçamento em PDF
+              </Button>
+              <p className="mt-2 text-center text-[11px] text-muted-foreground">
+                No celular o WhatsApp abre já com o PDF anexado. No computador o PDF é
+                baixado e você anexa na conversa.
+              </p>
+
             </div>
           </div>
         )}

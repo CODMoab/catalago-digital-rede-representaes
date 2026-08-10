@@ -5,7 +5,9 @@ import {
   Plus,
   ShoppingBag,
   Trash2,
+  FileDown,
   MessageCircle,
+
   X,
   Search,
   ArrowLeft,
@@ -34,7 +36,16 @@ import {
   REP_NAME,
   type BrandId,
 } from "@/lib/catalog";
+import {
+  buildQuotePdf,
+  downloadPdf,
+  quoteFileName,
+  shareQuotePdf,
+  type QuoteLine,
+  type QuoteMeta,
+} from "@/lib/quote-pdf";
 import { toast } from "sonner";
+
 import { cn } from "@/lib/utils";
 import { CatalogGallery } from "@/components/CatalogGallery";
 
@@ -112,53 +123,86 @@ function CatalogPage() {
     });
   };
 
-  const sendQuote = (brand: BrandId) => {
-    if (!customer.name.trim()) {
-      toast.error("Informe seu nome antes de enviar.");
-      return;
-    }
-    const lines: string[] = [];
-    let total = 0;
+  const collectLines = (brand: BrandId): QuoteLine[] => {
+    const out: QuoteLine[] = [];
     if (brand === "belliz") {
       for (const [code, qty] of Object.entries(cart.belliz)) {
         const p = BELLIZ.find((x) => x.code === code);
         if (!p) continue;
         const unit =
           p.priceColetivo && p.coletivo ? p.priceColetivo / p.coletivo : p.priceUnit;
-        const sub = unit * qty;
-        total += sub;
-        lines.push(
-          `• [${p.code}] ${qty}x ${p.name} (${p.line}) — ${currency(unit)} un = ${currency(sub)}`,
-        );
+        out.push({
+          brand: BRANDS.belliz.name,
+          code: p.code,
+          name: p.name,
+          line: p.line,
+          pack: p.coletivo || 1,
+          qty,
+          unitPrice: unit,
+        });
       }
     } else {
       for (const [code, qty] of Object.entries(cart.payot)) {
         const p = PAYOT.find((x) => x.code === code);
         if (!p) continue;
-        const sub = p.price * qty;
-        total += sub;
-        lines.push(
-          `• [${p.code}] ${qty}x ${p.name} — ${currency(p.price)} un = ${currency(sub)}`,
-        );
+        out.push({
+          brand: BRANDS.payot.name,
+          code: p.code,
+          name: p.name,
+          line: p.line,
+          pack: 1,
+          qty,
+          unitPrice: p.price,
+        });
       }
     }
+    return out;
+  };
+
+  const prepare = (brand: BrandId) => {
+    if (!customer.name.trim()) {
+      toast.error("Informe seu nome antes de enviar.");
+      return null;
+    }
+    const lines = collectLines(brand);
     if (lines.length === 0) {
       toast.error("Adicione ao menos 1 produto.");
-      return;
+      return null;
     }
-    const brandName = BRANDS[brand].name;
-    const msg =
-      `*Novo pedido — ${brandName}*\n\n` +
-      `${lines.join("\n")}\n\n` +
-      `*Total estimado:* ${currency(total)}\n` +
-      `*Total de itens:* ${lines.length}\n\n` +
-      `*Cliente:* ${customer.name}\n` +
-      (customer.phone ? `*Telefone:* ${customer.phone}\n` : "") +
-      (customer.notes ? `*Observações:* ${customer.notes}\n` : "");
-    const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(msg)}`;
-    window.open(url, "_blank", "noopener");
-    toast.success("Abrindo WhatsApp com seu pedido…");
+    const meta: QuoteMeta = {
+      title: `Pedido — ${BRANDS[brand].name}`,
+      customerName: customer.name.trim(),
+      customerPhone: customer.phone,
+      notes: customer.notes,
+    };
+    const total = lines.reduce((s, l) => s + l.unitPrice * l.qty, 0);
+    return { lines, meta, total, blob: buildQuotePdf(lines, meta), fileName: quoteFileName(meta) };
   };
+
+  const downloadQuote = (brand: BrandId) => {
+    const data = prepare(brand);
+    if (!data) return;
+    downloadPdf(data.blob, data.fileName);
+    toast.success("PDF do pedido baixado.");
+  };
+
+  const sendQuote = async (brand: BrandId) => {
+    const data = prepare(brand);
+    if (!data) return;
+    const msg =
+      `*Novo pedido — ${BRANDS[brand].name}*\n` +
+      `Cliente: ${customer.name}\n` +
+      (customer.phone ? `Telefone: ${customer.phone}\n` : "") +
+      `Itens: ${data.lines.length} · Total estimado: ${currency(data.total)}\n` +
+      `Detalhamento completo no PDF em anexo.`;
+    const result = await shareQuotePdf(data.blob, data.fileName, msg);
+    toast.success(
+      result === "shared"
+        ? "Escolha o WhatsApp para enviar o PDF."
+        : "PDF baixado — anexe no WhatsApp que abrimos para você.",
+    );
+  };
+
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -194,6 +238,7 @@ function CatalogPage() {
         customer={customer}
         setCustomer={setCustomer}
         onSend={sendQuote}
+        onDownload={downloadQuote}
       />
     </div>
   );
@@ -662,6 +707,7 @@ function QuoteDrawer({
   customer,
   setCustomer,
   onSend,
+  onDownload,
 }: {
   open: BrandId | null;
   onClose: () => void;
@@ -674,6 +720,7 @@ function QuoteDrawer({
   customer: { name: string; phone: string; notes: string };
   setCustomer: (v: { name: string; phone: string; notes: string }) => void;
   onSend: (b: BrandId) => void;
+  onDownload: (b: BrandId) => void;
 }) {
   const brand = open;
   if (!brand) return (
@@ -818,19 +865,34 @@ function QuoteDrawer({
             </div>
           </div>
 
-          <div className="mt-4 flex gap-2 border-t border-border pt-4">
-            <Button variant="outline" className="flex-1" onClick={onClose}>
-              <X className="mr-1 size-4" /> Fechar
-            </Button>
+          <div className="mt-4 border-t border-border pt-4">
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={onClose}>
+                <X className="mr-1 size-4" /> Fechar
+              </Button>
+              <Button
+                className="flex-1 gap-2"
+                onClick={() => onSend(brand)}
+                disabled={entries.length === 0}
+              >
+                <MessageCircle className="size-4" />
+                Enviar PDF no WhatsApp
+              </Button>
+            </div>
             <Button
-              className="flex-1 gap-2"
-              onClick={() => onSend(brand)}
+              variant="ghost"
+              className="mt-2 w-full gap-2"
+              onClick={() => onDownload(brand)}
               disabled={entries.length === 0}
             >
-              <MessageCircle className="size-4" />
-              Enviar no WhatsApp
+              <FileDown className="size-4" /> Baixar pedido em PDF
             </Button>
+            <p className="mt-1 text-center text-[11px] text-muted-foreground">
+              No celular o WhatsApp abre já com o PDF anexado; no computador o PDF é
+              baixado para você anexar.
+            </p>
           </div>
+
         </div>
       </SheetContent>
     </Sheet>
