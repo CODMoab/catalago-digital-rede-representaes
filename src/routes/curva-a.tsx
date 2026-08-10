@@ -397,7 +397,7 @@ function CurvaAPage() {
             <StepNav
               onBack={() => setStep(2)}
               onNext={generate}
-              nextLabel="Gerar meu mix Curva A"
+              nextLabel="Montar meu plano Curva A"
               disabled={budgetNumber < 100}
             />
             {budgetNumber < 100 && (
