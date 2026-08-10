@@ -86,11 +86,6 @@ export function buildQuotePdf(lines: QuoteLine[], meta: QuoteMeta): Blob {
     doc.text(l, margin, y);
     y += 14;
   }
-  if (meta.notes) {
-    const wrapped = doc.splitTextToSize(`Observações: ${meta.notes}`, pageW - margin * 2);
-    doc.text(wrapped, margin, y);
-    y += wrapped.length * 13;
-  }
 
   const hasCurva = lines.some((l) => l.curva);
   const brands = Array.from(new Set(lines.map((l) => l.brand)));

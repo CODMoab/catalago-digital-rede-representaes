@@ -85,7 +85,7 @@ function CatalogPage() {
   const [activeBrand, setActiveBrand] = useState<BrandId | null>(null);
   const [cart, setCart] = useState<Cart>(emptyCart);
   const [openQuote, setOpenQuote] = useState<BrandId | null>(null);
-  const [customer, setCustomer] = useState({ name: "", phone: "", notes: "" });
+  const [customer, setCustomer] = useState({ name: "", phone: "", cnpj: "" });
 
   const totals = useMemo(() => {
     const bellizItems = Object.entries(cart.belliz);
@@ -161,7 +161,15 @@ function CatalogPage() {
 
   const prepare = (brand: BrandId) => {
     if (!customer.name.trim()) {
-      toast.error("Informe seu nome antes de enviar.");
+      toast.error("Informe seu nome / loja antes de enviar.");
+      return null;
+    }
+    if (onlyDigits(customer.phone).length < 10) {
+      toast.error("Informe um telefone / WhatsApp válido.");
+      return null;
+    }
+    if (onlyDigits(customer.cnpj).length !== 14) {
+      toast.error("Informe um CNPJ válido (14 dígitos).");
       return null;
     }
     const lines = collectLines(brand);
@@ -173,7 +181,7 @@ function CatalogPage() {
       title: `Pedido — ${BRANDS[brand].name}`,
       customerName: customer.name.trim(),
       customerPhone: customer.phone,
-      notes: customer.notes,
+      customerCnpj: customer.cnpj,
     };
     const total = lines.reduce((s, l) => s + l.unitPrice * l.qty, 0);
     return { lines, meta, total, blob: buildQuotePdf(lines, meta), fileName: quoteFileName(meta) };
