@@ -6,6 +6,7 @@ import {
   ShoppingBag,
   Trash2,
   FileDown,
+  FileSpreadsheet,
   MessageCircle,
 
   X,
@@ -327,6 +328,7 @@ function CatalogPage() {
         setCustomer={setCustomer}
         onSend={sendQuote}
         onDownload={downloadQuote}
+        onDownloadSheet={downloadSheet}
       />
     </div>
   );
@@ -923,6 +925,7 @@ function QuoteDrawer({
   setCustomer,
   onSend,
   onDownload,
+  onDownloadSheet,
 }: {
   open: BrandId | null;
   onClose: () => void;
@@ -936,6 +939,7 @@ function QuoteDrawer({
   setCustomer: (v: { name: string; phone: string; cnpj: string }) => void;
   onSend: (b: BrandId) => void;
   onDownload: (b: BrandId) => void;
+  onDownloadSheet: (b: BrandId) => void;
 }) {
   const brand = open;
   if (!brand) return (
@@ -1135,6 +1139,14 @@ function QuoteDrawer({
               disabled={entries.length === 0}
             >
               <FileDown className="size-4" /> Baixar pedido em PDF
+            </Button>
+            <Button
+              variant="ghost"
+              className="mt-1 w-full gap-2"
+              onClick={() => onDownloadSheet(brand)}
+              disabled={entries.length === 0}
+            >
+              <FileSpreadsheet className="size-4" /> Baixar planilha do pedido (padrão {BRANDS[brand].name})
             </Button>
             <p className="mt-1 text-center text-[11px] text-muted-foreground">
               No celular o WhatsApp abre já com o PDF anexado; no computador o PDF é
