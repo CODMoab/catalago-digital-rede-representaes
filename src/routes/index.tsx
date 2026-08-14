@@ -6,6 +6,7 @@ import {
   ShoppingBag,
   Trash2,
   FileDown,
+  FileSpreadsheet,
   MessageCircle,
 
   X,
@@ -37,6 +38,8 @@ import {
   type BrandId,
 } from "@/lib/catalog";
 import { getCatalog } from "@/lib/catalog.functions";
+import { submitQuote, type QuoteItem } from "@/lib/quotes.functions";
+import { buildOrderSheet, downloadBlob, orderSheetFileName } from "@/lib/order-sheet";
 import {
   buildQuotePdf,
   downloadPdf,
@@ -48,6 +51,7 @@ import {
   type QuoteMeta,
 } from "@/lib/quote-pdf";
 import { toast } from "sonner";
+import { useServerFn } from "@tanstack/react-start";
 
 import { cn } from "@/lib/utils";
 import { CatalogGallery } from "@/components/CatalogGallery";
@@ -94,6 +98,7 @@ function CatalogPage() {
   const [cart, setCart] = useState<Cart>(emptyCart);
   const [openQuote, setOpenQuote] = useState<BrandId | null>(null);
   const [customer, setCustomer] = useState({ name: "", phone: "", cnpj: "" });
+  const save = useServerFn(submitQuote);
 
   const totals = useMemo(() => {
     const bellizItems = Object.entries(cart.belliz);
@@ -167,6 +172,33 @@ function CatalogPage() {
     return out;
   };
 
+  const collectItems = (brand: BrandId): QuoteItem[] => {
+    const src = brand === "belliz" ? BELLIZ : PAYOT;
+    return Object.entries(cart[brand]).flatMap(([code, qty]) => {
+      const p = src.find((x) => x.code === code) as any;
+      if (!p) return [];
+      const pack = brand === "belliz" ? Math.max(1, p.coletivo || 1) : 1;
+      const unit =
+        brand === "belliz"
+          ? p.priceColetivo && p.coletivo
+            ? p.priceColetivo / p.coletivo
+            : p.priceUnit
+          : p.price;
+      return [
+        {
+          code: p.code,
+          name: p.name,
+          line: p.line ?? "",
+          ean: p.ean ?? "",
+          pack,
+          qty,
+          unitPrice: Math.round(unit * 100) / 100,
+          curva: null,
+        } satisfies QuoteItem,
+      ];
+    });
+  };
+
   const prepare = (brand: BrandId) => {
     if (!customer.name.trim()) {
       toast.error("Informe seu nome / loja antes de enviar.");
@@ -192,19 +224,60 @@ function CatalogPage() {
       customerCnpj: customer.cnpj,
     };
     const total = lines.reduce((s, l) => s + l.unitPrice * l.qty, 0);
-    return { lines, meta, total, blob: buildQuotePdf(lines, meta), fileName: quoteFileName(meta) };
+    return {
+      lines,
+      items: collectItems(brand),
+      meta,
+      total,
+      blob: buildQuotePdf(lines, meta),
+      fileName: quoteFileName(meta),
+    };
+  };
+
+  const record = async (brand: BrandId, items: QuoteItem[]) => {
+    try {
+      await save({
+        data: {
+          brand_id: brand,
+          source: "catalogo" as const,
+          customer_name: customer.name.trim(),
+          customer_phone: customer.phone,
+          customer_cnpj: customer.cnpj,
+          items,
+        },
+      });
+    } catch {
+      /* o pedido segue pelo WhatsApp mesmo se o registro falhar */
+    }
   };
 
   const downloadQuote = (brand: BrandId) => {
     const data = prepare(brand);
     if (!data) return;
     downloadPdf(data.blob, data.fileName);
+    void record(brand, data.items);
     toast.success("PDF do pedido baixado.");
+  };
+
+  const downloadSheet = (brand: BrandId) => {
+    const data = prepare(brand);
+    if (!data) return;
+    const meta = {
+      brandId: brand,
+      brandName: BRANDS[brand].name,
+      customerName: customer.name.trim(),
+      customerPhone: customer.phone,
+      customerCnpj: customer.cnpj,
+    };
+    downloadBlob(buildOrderSheet(data.items, meta), orderSheetFileName(meta));
+    void record(brand, data.items);
+    toast.success("Planilha do pedido baixada no padrão da marca.");
   };
 
   const sendQuote = async (brand: BrandId) => {
     const data = prepare(brand);
     if (!data) return;
+    void record(brand, data.items);
     const msg =
       `*Novo pedido — ${BRANDS[brand].name}*\n` +
       `Cliente: ${customer.name}\n` +
@@ -255,6 +328,7 @@ function CatalogPage() {
         setCustomer={setCustomer}
         onSend={sendQuote}
         onDownload={downloadQuote}
+        onDownloadSheet={downloadSheet}
       />
     </div>
   );
@@ -851,6 +925,7 @@ function QuoteDrawer({
   setCustomer,
   onSend,
   onDownload,
+  onDownloadSheet,
 }: {
   open: BrandId | null;
   onClose: () => void;
@@ -864,6 +939,7 @@ function QuoteDrawer({
   setCustomer: (v: { name: string; phone: string; cnpj: string }) => void;
   onSend: (b: BrandId) => void;
   onDownload: (b: BrandId) => void;
+  onDownloadSheet: (b: BrandId) => void;
 }) {
   const brand = open;
   if (!brand) return (
@@ -1063,6 +1139,14 @@ function QuoteDrawer({
               disabled={entries.length === 0}
             >
               <FileDown className="size-4" /> Baixar pedido em PDF
+            </Button>
+            <Button
+              variant="ghost"
+              className="mt-1 w-full gap-2"
+              onClick={() => onDownloadSheet(brand)}
+              disabled={entries.length === 0}
+            >
+              <FileSpreadsheet className="size-4" /> Baixar planilha do pedido (padrão {BRANDS[brand].name})
             </Button>
             <p className="mt-1 text-center text-[11px] text-muted-foreground">
               No celular o WhatsApp abre já com o PDF anexado; no computador o PDF é
