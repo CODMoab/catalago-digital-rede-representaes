@@ -37,6 +37,8 @@ import {
   type BrandId,
 } from "@/lib/catalog";
 import { getCatalog } from "@/lib/catalog.functions";
+import { submitQuote, type QuoteItem } from "@/lib/quotes.functions";
+import { buildOrderSheet, downloadBlob, orderSheetFileName } from "@/lib/order-sheet";
 import {
   buildQuotePdf,
   downloadPdf,
@@ -48,6 +50,7 @@ import {
   type QuoteMeta,
 } from "@/lib/quote-pdf";
 import { toast } from "sonner";
+import { useServerFn } from "@tanstack/react-start";
 
 import { cn } from "@/lib/utils";
 import { CatalogGallery } from "@/components/CatalogGallery";
