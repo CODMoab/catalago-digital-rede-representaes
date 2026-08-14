@@ -1,0 +1,104 @@
+import { createServerFn } from "@tanstack/react-start";
+import { z } from "zod";
+
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+
+const itemSchema = z.object({
+  code: z.string().min(1),
+  name: z.string().min(1),
+  line: z.string().default(""),
+  ean: z.string().default(""),
+  pack: z.number().int().positive().default(1),
+  qty: z.number().int().positive(),
+  unitPrice: z.number().nonnegative(),
+  curva: z.enum(["A", "B", "C"]).nullable().default(null),
+});
+
+export type QuoteItem = z.infer<typeof itemSchema>;
+
+const submitSchema = z.object({
+  brand_id: z.enum(["belliz", "payot"]),
+  source: z.enum(["catalogo", "curva-a"]).default("catalogo"),
+  customer_name: z.string().min(2).max(120),
+  customer_phone: z.string().min(8).max(30),
+  customer_cnpj: z.string().min(14).max(20),
+  items: z.array(itemSchema).min(1).max(500),
+});
+
+/** Registra o orçamento enviado pelo cliente (gravação feita no servidor). */
+export const submitQuote = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) => submitSchema.parse(data))
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const units = data.items.reduce((s, i) => s + i.qty, 0);
+    const total = Math.round(data.items.reduce((s, i) => s + i.qty * i.unitPrice, 0) * 100) / 100;
+
+    const { data: row, error } = await supabaseAdmin
+      .from("quotes")
+      .insert({
+        brand_id: data.brand_id,
+        source: data.source,
+        customer_name: data.customer_name,
+        customer_phone: data.customer_phone,
+        customer_cnpj: data.customer_cnpj,
+        items: data.items,
+        items_count: data.items.length,
+        units_count: units,
+        total,
+      })
+      .select("id, created_at")
+      .single();
+    if (error) throw new Error(error.message);
+    return row;
+  });
+
+export type QuoteRecord = {
+  id: string;
+  brand_id: string;
+  source: string;
+  customer_name: string;
+  customer_phone: string;
+  customer_cnpj: string;
+  items: QuoteItem[];
+  items_count: number;
+  units_count: number;
+  total: number;
+  status: string;
+  created_at: string;
+};
+
+/** Lista dos orçamentos recebidos (somente admin). */
+export const listQuotes = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: unknown) =>
+    z
+      .object({ limit: z.number().int().positive().max(200).default(100) })
+      .default({ limit: 100 })
+      .parse(data ?? {}),
+  )
+  .handler(async ({ data, context }) => {
+    const { data: rows, error } = await context.supabase
+      .from("quotes")
+      .select(
+        "id, brand_id, source, customer_name, customer_phone, customer_cnpj, items, items_count, units_count, total, status, created_at",
+      )
+      .order("created_at", { ascending: false })
+      .limit(data.limit);
+    if (error) throw new Error(error.message);
+    return { rows: (rows ?? []) as unknown as QuoteRecord[] };
+  });
+
+/** Altera a situação do orçamento (somente admin). */
+export const setQuoteStatus = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: unknown) =>
+    z.object({ id: z.string().uuid(), status: z.enum(["novo", "enviado", "faturado", "cancelado"]) }).parse(data),
+  )
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase
+      .from("quotes")
+      .update({ status: data.status })
+      .eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
