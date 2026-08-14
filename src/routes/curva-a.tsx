@@ -646,6 +646,13 @@ function CurvaAPage() {
               >
                 <FileDown className="size-4" /> Baixar orçamento em PDF
               </Button>
+              <Button
+                variant="ghost"
+                className="mt-1 w-full gap-2"
+                onClick={downloadSheet}
+              >
+                <FileSpreadsheet className="size-4" /> Baixar planilha do pedido
+              </Button>
               <p className="mt-2 text-center text-[11px] text-muted-foreground">
                 No celular o WhatsApp abre já com o PDF anexado. No computador o PDF é
                 baixado e você anexa na conversa.
