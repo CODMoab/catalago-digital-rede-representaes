@@ -20,6 +20,9 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { BRANDS, REP_NAME, WHATSAPP_NUMBER, applyCatalog, productImage, type BrandId } from "@/lib/catalog";
 import { getCatalog } from "@/lib/catalog.functions";
+import { submitQuote, type QuoteItem } from "@/lib/quotes.functions";
+import { buildOrderSheet, downloadBlob, orderSheetFileName } from "@/lib/order-sheet";
+import { useServerFn } from "@tanstack/react-start";
 import {
   buildQuotePdf,
   downloadPdf,
@@ -92,6 +95,7 @@ function CurvaAPage() {
   const [budget, setBudget] = useState("2000");
   const [items, setItems] = useState<SuggestedItem[] | null>(null);
   const [customer, setCustomer] = useState({ name: "", phone: "", cnpj: "" });
+  const save = useServerFn(submitQuote);
 
   const budgetNumber = Number(budget.replace(/[^\d]/g, "")) || 0;
 
@@ -185,11 +189,56 @@ function CurvaAPage() {
     return true;
   };
 
+  const collectItems = (): QuoteItem[] =>
+    (items ?? []).map((i) => ({
+      code: i.code,
+      name: i.name,
+      line: i.line ?? "",
+      ean: "",
+      pack: Math.max(1, i.packSize || 1),
+      qty: i.qty,
+      unitPrice: Math.round(i.unitPrice * 100) / 100,
+      curva: i.curva ?? null,
+    }));
+
+  const record = async () => {
+    if (!brand) return;
+    try {
+      await save({
+        data: {
+          brand_id: brand,
+          source: "curva-a" as const,
+          customer_name: customer.name.trim(),
+          customer_phone: customer.phone,
+          customer_cnpj: customer.cnpj,
+          items: collectItems(),
+        },
+      });
+    } catch {
+      /* segue o fluxo mesmo se o registro falhar */
+    }
+  };
+
   const download = () => {
     if (!validate()) return;
     const { blob, fileName } = buildPdf();
     downloadPdf(blob, fileName);
+    void record();
     toast.success("PDF do orçamento baixado.");
+  };
+
+  const downloadSheet = () => {
+    if (!validate() || !brand) return;
+    const meta = {
+      brandId: brand,
+      brandName: BRANDS[brand].name,
+      customerName: customer.name.trim(),
+      customerPhone: customer.phone,
+      customerCnpj: customer.cnpj,
+    };
+    downloadBlob(buildOrderSheet(collectItems(), meta), orderSheetFileName(meta));
+    void record();
+    toast.success("Planilha do pedido baixada no padrão da marca.");
   };
 
   const send = async () => {
@@ -203,6 +252,7 @@ function CurvaAPage() {
       `Itens: ${list.length} · Total: ${currency(total)}\n` +
       `Detalhamento completo no PDF em anexo.`;
 
+    void record();
     const result = await shareQuotePdf(blob, fileName, msg);
     toast.success(
       result === "shared"
