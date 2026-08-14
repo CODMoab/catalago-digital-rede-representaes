@@ -5,6 +5,7 @@ import {
   BarChart3,
   Check,
   FileDown,
+  FileSpreadsheet,
 
   MessageCircle,
   Minus,
