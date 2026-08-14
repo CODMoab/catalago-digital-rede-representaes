@@ -103,6 +103,59 @@ export type Database = {
           },
         ]
       }
+      quotes: {
+        Row: {
+          brand_id: string
+          created_at: string
+          customer_cnpj: string
+          customer_name: string
+          customer_phone: string
+          id: string
+          items: Json
+          items_count: number
+          source: string
+          status: string
+          total: number
+          units_count: number
+        }
+        Insert: {
+          brand_id: string
+          created_at?: string
+          customer_cnpj: string
+          customer_name: string
+          customer_phone: string
+          id?: string
+          items: Json
+          items_count?: number
+          source?: string
+          status?: string
+          total?: number
+          units_count?: number
+        }
+        Update: {
+          brand_id?: string
+          created_at?: string
+          customer_cnpj?: string
+          customer_name?: string
+          customer_phone?: string
+          id?: string
+          items?: Json
+          items_count?: number
+          source?: string
+          status?: string
+          total?: number
+          units_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quotes_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brands"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string
