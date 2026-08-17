@@ -7,9 +7,15 @@
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 import { mcpPlugin } from "@lovable.dev/mcp-js/stacks/tanstack/vite";
 
+// O mcpPlugin quebra no Windows: ele compara o caminho do projeto vindo do Vite
+// ("C:/Users/...", com barra normal) contra o que ele mesmo monta
+// ("C:\Users\...", com barra invertida) e conclui, errado, que sao pastas diferentes.
+// No Lovable e em Mac/Linux nao ha esse conflito, entao ali o plugin segue ligado.
+const isWindows = process.platform === "win32";
+
 export default defineConfig({
   vite: {
-    plugins: [mcpPlugin()],
+    plugins: isWindows ? [] : [mcpPlugin()],
   },
   tanstackStart: {
     // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
