@@ -1,59 +1,95 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useEffect, useState } from "react";
-import { ArrowLeft, FileSpreadsheet, LogOut, RefreshCw } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import {
+  ArrowLeft,
+  FileSpreadsheet,
+  LogOut,
+  RefreshCw,
+  Search,
+  MessageCircle,
+  Users,
+  ShoppingBag,
+  UserX,
+  TrendingUp,
+  Package,
+  CheckCircle2,
+  AlertCircle,
+  ExternalLink,
+  ChevronDown,
+  ChevronUp,
+  Filter,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { BRANDS, type BrandId } from "@/lib/catalog";
 import { checkAdmin } from "@/lib/catalog.functions";
 import { listQuotes, setQuoteStatus, type QuoteRecord } from "@/lib/quotes.functions";
+import { listLeadsForReactivation, type ReactivationLead } from "@/lib/leads.functions";
 import { buildOrderSheet, downloadBlob, orderSheetFileName } from "@/lib/order-sheet";
+import { formatCnpj, formatPhone, onlyDigits } from "@/lib/leads";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/pedidos")({
   head: () => ({
     meta: [
-      { title: "Pedidos recebidos — Rede Representações" },
+      { title: "Gestão de Pedidos & Clientes — Rede Representações" },
       {
         name: "description",
         content:
-          "Todos os orçamentos enviados pelos clientes, com download da planilha no padrão Belliz ou Payot.",
+          "Painel administrativo para acompanhamento de orçamentos por marca e reativação de clientes cadastrados.",
       },
-      { property: "og:title", content: "Pedidos recebidos — Rede Representações" },
-      {
-        property: "og:description",
-        content: "Acompanhe os orçamentos dos clientes e baixe a planilha de cada pedido.",
-      },
+      { property: "og:title", content: "Gestão de Pedidos & Clientes — Rede Representações" },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
   }),
-  component: QuotesPage,
+  component: QuotesAndLeadsPage,
 });
 
-const brl = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+const brl = (v: number) =>
+  v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 const STATUS = ["novo", "enviado", "faturado", "cancelado"] as const;
 
-function QuotesPage() {
+function QuotesAndLeadsPage() {
   const navigate = useNavigate();
   const check = useServerFn(checkAdmin);
-  const list = useServerFn(listQuotes);
-  const setStatus = useServerFn(setQuoteStatus);
+  const listQuotesFn = useServerFn(listQuotes);
+  const setStatusFn = useServerFn(setQuoteStatus);
+  const listLeadsFn = useServerFn(listLeadsForReactivation);
 
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
-  const [rows, setRows] = useState<QuoteRecord[]>([]);
+  const [activeTab, setActiveTab] = useState<"quotes" | "reactivation">("quotes");
+
+  // Dados de Orçamentos
+  const [quotes, setQuotes] = useState<QuoteRecord[]>([]);
+  const [quoteSearch, setQuoteSearch] = useState("");
+  const [brandFilter, setBrandFilter] = useState<"todas" | "belliz" | "payot">("todas");
+  const [statusFilter, setStatusFilter] = useState<string>("todos");
+
+  // Dados de Leads & Reativação
+  const [leads, setLeads] = useState<ReactivationLead[]>([]);
+  const [leadSearch, setLeadSearch] = useState("");
+  const [leadStatusFilter, setLeadStatusFilter] = useState<"todos" | "sem_pedido" | "com_pedido">("todos");
+
   const [loading, setLoading] = useState(false);
 
-  const load = async () => {
+  const loadData = async () => {
     setLoading(true);
     try {
-      const res = await list({ data: { limit: 100 } });
-      setRows(res.rows);
+      const [quotesRes, leadsRes] = await Promise.all([
+        listQuotesFn({ data: { limit: 150 } }),
+        listLeadsFn(),
+      ]);
+      setQuotes(quotesRes.rows);
+      setLeads(leadsRes.leads);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erro ao carregar pedidos.");
+      toast.error(err instanceof Error ? err.message : "Erro ao carregar dados.");
     } finally {
       setLoading(false);
     }
@@ -63,22 +99,76 @@ function QuotesPage() {
     check()
       .then((r) => {
         setIsAdmin(r.isAdmin);
-        if (r.isAdmin) void load();
+        if (r.isAdmin) void loadData();
       })
       .catch(() => setIsAdmin(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Filtro de Orçamentos
+  const filteredQuotes = useMemo(() => {
+    const q = quoteSearch.trim().toLowerCase();
+    return quotes.filter((item) => {
+      if (brandFilter !== "todas" && item.brand_id !== brandFilter) return false;
+      if (statusFilter !== "todos" && item.status !== statusFilter) return false;
+      if (!q) return true;
+      return (
+        item.customer_name.toLowerCase().includes(q) ||
+        item.customer_phone.includes(q) ||
+        item.customer_cnpj.includes(q)
+      );
+    });
+  }, [quotes, quoteSearch, brandFilter, statusFilter]);
+
+  // Filtro de Leads para Reativação
+  const filteredLeads = useMemo(() => {
+    const q = leadSearch.trim().toLowerCase();
+    return leads.filter((lead) => {
+      if (leadStatusFilter === "sem_pedido" && lead.has_ordered) return false;
+      if (leadStatusFilter === "com_pedido" && !lead.has_ordered) return false;
+      if (!q) return true;
+      return (
+        lead.name.toLowerCase().includes(q) ||
+        lead.phone.includes(q) ||
+        lead.cnpj.includes(q)
+      );
+    });
+  }, [leads, leadSearch, leadStatusFilter]);
+
+  // Métricas do Dashboard de Reativação
+  const stats = useMemo(() => {
+    const totalLeads = leads.length;
+    const orderedLeads = leads.filter((l) => l.has_ordered).length;
+    const pendingLeads = leads.filter((l) => !l.has_ordered).length;
+    const totalValue = quotes.reduce((acc, q) => acc + Number(q.total || 0), 0);
+    const conversionRate = totalLeads > 0 ? Math.round((orderedLeads / totalLeads) * 100) : 0;
+
+    return {
+      totalLeads,
+      orderedLeads,
+      pendingLeads,
+      totalValue,
+      conversionRate,
+    };
+  }, [leads, quotes]);
+
   if (isAdmin === null) {
-    return <main className="p-10 text-sm text-muted-foreground">Carregando pedidos…</main>;
+    return (
+      <main className="flex min-h-[60vh] items-center justify-center p-10 text-sm text-muted-foreground">
+        <RefreshCw className="mr-2 size-5 animate-spin text-primary" /> Carregando painel…
+      </main>
+    );
   }
 
   if (!isAdmin) {
     return (
       <main className="mx-auto max-w-md px-6 py-20 text-center">
+        <div className="grid size-12 mx-auto place-items-center rounded-full bg-destructive/10 text-destructive mb-4">
+          <AlertCircle className="size-6" />
+        </div>
         <h1 className="text-xl font-bold">Acesso restrito</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Esta conta não tem permissão de administrador.
+          Esta conta não possui permissão de administrador.
         </p>
         <Button
           variant="outline"
@@ -88,70 +178,280 @@ function QuotesPage() {
             navigate({ to: "/auth" });
           }}
         >
-          Sair
+          Sair da conta
         </Button>
       </main>
     );
   }
 
   return (
-    <main className="mx-auto max-w-5xl px-4 py-8">
-      <div className="flex items-center justify-between gap-3">
+    <main className="mx-auto max-w-6xl px-4 py-8">
+      {/* Header do Painel */}
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border pb-6">
         <div>
-          <Link to="/" className="inline-flex items-center gap-1 text-sm text-muted-foreground">
-            <ArrowLeft className="h-4 w-4" /> Voltar ao catálogo
+          <Link
+            to="/"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-primary transition-colors"
+          >
+            <ArrowLeft className="size-3.5" /> Voltar ao catálogo público
           </Link>
-          <h1 className="mt-1 text-2xl font-bold">Pedidos recebidos</h1>
-          <p className="text-sm text-muted-foreground">
-            Cada pedido do cliente fica registrado aqui — baixe a planilha já no padrão da marca.
+          <h1 className="mt-1 text-3xl font-black tracking-tight">
+            Painel do Representante
+          </h1>
+          <p className="text-xs text-muted-foreground sm:text-sm">
+            Gestão de pedidos por marca e reativação comercial de clientes cadastrados.
           </p>
         </div>
-        <div className="flex gap-2">
+
+        <div className="flex flex-wrap items-center gap-2">
           <Link to="/admin">
             <Button variant="outline" size="sm">
-              Base de preços
+              Base de Preços
             </Button>
           </Link>
-          <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading}>
-            <RefreshCw className={cn("mr-2 h-4 w-4", loading && "animate-spin")} /> Atualizar
-          </Button>
           <Button
             variant="outline"
+            size="sm"
+            onClick={() => void loadData()}
+            disabled={loading}
+            className="gap-1.5"
+          >
+            <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
+            Atualizar
+          </Button>
+          <Button
+            variant="ghost"
             size="sm"
             onClick={async () => {
               await supabase.auth.signOut();
               navigate({ to: "/auth" });
             }}
+            className="gap-1.5 text-destructive hover:bg-destructive/10 hover:text-destructive"
           >
-            <LogOut className="mr-2 h-4 w-4" /> Sair
+            <LogOut className="size-3.5" /> Sair
           </Button>
         </div>
       </div>
 
-      <div className="mt-6 space-y-3">
-        {rows.map((q) => (
-          <QuoteCard
-            key={q.id}
-            quote={q}
-            onStatus={async (status) => {
-              try {
-                await setStatus({ data: { id: q.id, status } });
-                setRows((prev) => prev.map((r) => (r.id === q.id ? { ...r, status } : r)));
-              } catch (err) {
-                toast.error(err instanceof Error ? err.message : "Não foi possível atualizar.");
-              }
-            }}
-          />
-        ))}
-        {!loading && rows.length === 0 && (
-          <p className="py-10 text-center text-sm text-muted-foreground">
-            Nenhum pedido recebido ainda.
-          </p>
-        )}
+      {/* Tabs Principais: Orçamentos vs Reativação de Clientes */}
+      <div className="mt-6">
+        <Tabs
+          value={activeTab}
+          onValueChange={(v) => setActiveTab(v as "quotes" | "reactivation")}
+          className="w-full"
+        >
+          <TabsList className="grid w-full grid-cols-2 max-w-md mb-6">
+            <TabsTrigger value="quotes" className="gap-2 font-bold text-xs sm:text-sm">
+              <ShoppingBag className="size-4" /> Orçamentos por Marca
+              <span className="ml-1 rounded-full bg-primary/20 px-2 py-0.5 text-[10px] text-primary">
+                {quotes.length}
+              </span>
+            </TabsTrigger>
+            <TabsTrigger value="reactivation" className="gap-2 font-bold text-xs sm:text-sm">
+              <Users className="size-4" /> Reativação de Clientes
+              {stats.pendingLeads > 0 && (
+                <span className="ml-1 rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-bold text-amber-600">
+                  {stats.pendingLeads} pendentes
+                </span>
+              )}
+            </TabsTrigger>
+          </TabsList>
+
+          {/* ======================================================== */}
+          {/* ABA 1: ORÇAMENTOS POR MARCA                              */}
+          {/* ======================================================== */}
+          <TabsContent value="quotes" className="space-y-6 focus-visible:outline-none">
+            {/* Filtros de Orçamentos */}
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card p-4">
+              <div className="flex flex-1 flex-wrap items-center gap-2 min-w-[280px]">
+                <div className="relative flex-1 min-w-[200px]">
+                  <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    value={quoteSearch}
+                    onChange={(e) => setQuoteSearch(e.target.value)}
+                    placeholder="Buscar por cliente, CNPJ ou WhatsApp…"
+                    className="pl-9"
+                  />
+                </div>
+
+                {/* Filtro por Marca */}
+                <div className="flex items-center gap-1">
+                  {(["todas", "belliz", "payot"] as const).map((b) => (
+                    <Button
+                      key={b}
+                      variant={brandFilter === b ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setBrandFilter(b)}
+                      className="text-xs capitalize"
+                    >
+                      {b === "todas" ? "Todas as Marcas" : BRANDS[b].name}
+                    </Button>
+                  ))}
+                </div>
+
+                {/* Filtro por Status */}
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="h-9 rounded-md border border-border bg-background px-2.5 text-xs font-medium"
+                >
+                  <option value="todos">Todos os Status</option>
+                  {STATUS.map((s) => (
+                    <option key={s} value={s}>
+                      Status: {s}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="text-right text-xs text-muted-foreground">
+                <strong>{filteredQuotes.length}</strong> orçamentos encontrados
+              </div>
+            </div>
+
+            {/* Lista de Cards de Orçamento */}
+            <div className="space-y-3">
+              {filteredQuotes.map((q) => (
+                <QuoteCard
+                  key={q.id}
+                  quote={q}
+                  onStatus={async (status) => {
+                    try {
+                      await setStatusFn({ data: { id: q.id, status } });
+                      setQuotes((prev) =>
+                        prev.map((r) => (r.id === q.id ? { ...r, status } : r))
+                      );
+                      toast.success(`Situação atualizada para '${status}'`);
+                    } catch (err) {
+                      toast.error(
+                        err instanceof Error ? err.message : "Não foi possível atualizar."
+                      );
+                    }
+                  }}
+                />
+              ))}
+
+              {!loading && filteredQuotes.length === 0 && (
+                <div className="rounded-xl border border-dashed border-border p-12 text-center text-sm text-muted-foreground">
+                  Nenhum orçamento encontrado com os filtros selecionados.
+                </div>
+              )}
+            </div>
+          </TabsContent>
+
+          {/* ======================================================== */}
+          {/* ABA 2: REATIVAÇÃO DE CLIENTES / LEADS SEM PEDIDO         */}
+          {/* ======================================================== */}
+          <TabsContent value="reactivation" className="space-y-6 focus-visible:outline-none">
+            {/* Dashboard Cards com Métricas */}
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <div className="rounded-xl border border-border bg-card p-4">
+                <div className="flex items-center justify-between text-muted-foreground">
+                  <span className="text-xs font-medium">Lojistas Cadastrados</span>
+                  <Users className="size-4 text-primary" />
+                </div>
+                <p className="mt-2 text-2xl font-black">{stats.totalLeads}</p>
+                <p className="text-[11px] text-muted-foreground">Base total de leads</p>
+              </div>
+
+              <div className="rounded-xl border border-border bg-card p-4">
+                <div className="flex items-center justify-between text-muted-foreground">
+                  <span className="text-xs font-medium">Pedidos Feitos</span>
+                  <CheckCircle2 className="size-4 text-emerald-600" />
+                </div>
+                <p className="mt-2 text-2xl font-black text-emerald-600">
+                  {stats.orderedLeads}
+                </p>
+                <p className="text-[11px] text-muted-foreground">
+                  {stats.conversionRate}% taxa de conversão
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
+                <div className="flex items-center justify-between text-amber-700">
+                  <span className="text-xs font-bold">Sem Pedido (Reativar)</span>
+                  <UserX className="size-4 text-amber-600" />
+                </div>
+                <p className="mt-2 text-2xl font-black text-amber-600">
+                  {stats.pendingLeads}
+                </p>
+                <p className="text-[11px] text-amber-700">Lojistas com desconto aguardando</p>
+              </div>
+
+              <div className="rounded-xl border border-border bg-card p-4">
+                <div className="flex items-center justify-between text-muted-foreground">
+                  <span className="text-xs font-medium">Volume em Orçamentos</span>
+                  <TrendingUp className="size-4 text-primary" />
+                </div>
+                <p className="mt-2 text-2xl font-black text-primary">
+                  {brl(stats.totalValue)}
+                </p>
+                <p className="text-[11px] text-muted-foreground">Total gerado no catálogo</p>
+              </div>
+            </div>
+
+            {/* Barra de Filtros de Reativação */}
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card p-4">
+              <div className="flex flex-1 flex-wrap items-center gap-2 min-w-[280px]">
+                <div className="relative flex-1 min-w-[200px]">
+                  <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    value={leadSearch}
+                    onChange={(e) => setLeadSearch(e.target.value)}
+                    placeholder="Buscar por nome da loja, CNPJ ou WhatsApp…"
+                    className="pl-9"
+                  />
+                </div>
+
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant={leadStatusFilter === "todos" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setLeadStatusFilter("todos")}
+                    className="text-xs"
+                  >
+                    Todos ({leads.length})
+                  </Button>
+                  <Button
+                    variant={leadStatusFilter === "sem_pedido" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setLeadStatusFilter("sem_pedido")}
+                    className="text-xs gap-1 border-amber-500/40 text-amber-700 hover:bg-amber-50"
+                  >
+                    ⚠️ Sem Pedido ({stats.pendingLeads})
+                  </Button>
+                  <Button
+                    variant={leadStatusFilter === "com_pedido" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setLeadStatusFilter("com_pedido")}
+                    className="text-xs gap-1 border-emerald-500/40 text-emerald-700 hover:bg-emerald-50"
+                  >
+                    ✅ Com Pedido ({stats.orderedLeads})
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            {/* Lista de Clientes para Reativação */}
+            <div className="space-y-3">
+              {filteredLeads.map((lead) => (
+                <ReactivationCard key={lead.id} lead={lead} />
+              ))}
+
+              {!loading && filteredLeads.length === 0 && (
+                <div className="rounded-xl border border-dashed border-border p-12 text-center text-sm text-muted-foreground">
+                  Nenhum cliente encontrado para este filtro.
+                </div>
+              )}
+            </div>
+          </TabsContent>
+        </Tabs>
       </div>
     </main>
   );
 }
+
+/* ---------------- Card de Orçamento ---------------- */
 
 function QuoteCard({
   quote,
@@ -176,61 +476,217 @@ function QuoteCard({
     downloadBlob(buildOrderSheet(quote.items, meta), orderSheetFileName(meta));
   };
 
+  const cleanPhone = onlyDigits(quote.customer_phone);
+  const whatsappUrl = `https://wa.me/55${cleanPhone}?text=${encodeURIComponent(
+    `Olá, ${quote.customer_name}! Tudo bem? Recebemos o seu orçamento de ${brandName} no valor de ${brl(
+      Number(quote.total)
+    )}. Gostaria de confirmar o faturamento e as condições de entrega?`
+  )}`;
+
   return (
-    <div className="rounded-xl border border-border p-4">
+    <div className="rounded-xl border border-border bg-card p-4 transition-all hover:border-primary/40 hover:shadow-sm">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="font-semibold">
-            {quote.customer_name}{" "}
-            <span className="text-xs font-normal text-muted-foreground">
-              · {brandName} · {quote.source === "curva-a" ? "Curva A" : "Catálogo"}
+          <div className="flex items-center gap-2">
+            <span
+              className={cn(
+                "rounded-md px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider",
+                brand === "belliz"
+                  ? "bg-rose-500/10 text-rose-600"
+                  : "bg-amber-500/10 text-amber-700"
+              )}
+            >
+              {brandName}
             </span>
-          </p>
+            <span className="rounded bg-secondary px-2 py-0.5 text-[10px] font-medium text-secondary-foreground">
+              {quote.source === "curva-a" ? "Curva A" : "Catálogo Oficial"}
+            </span>
+            <span className="text-xs text-muted-foreground">
+              {new Date(quote.created_at).toLocaleString("pt-BR")}
+            </span>
+          </div>
+
+          <h3 className="mt-1 text-base font-bold">{quote.customer_name}</h3>
           <p className="text-xs text-muted-foreground">
-            {new Date(quote.created_at).toLocaleString("pt-BR")} · {quote.customer_phone} ·{" "}
-            {quote.customer_cnpj}
+            CNPJ: <strong className="font-mono text-foreground">{formatCnpj(quote.customer_cnpj)}</strong> · WhatsApp:{" "}
+            <strong className="text-foreground">{formatPhone(quote.customer_phone)}</strong>
           </p>
-          <p className="mt-1 text-sm">
-            {quote.items_count} itens · {quote.units_count} unidades ·{" "}
-            <strong>{brl(Number(quote.total))}</strong>
+
+          <p className="mt-2 text-sm font-medium">
+            {quote.items_count} produtos · {quote.units_count} unidades · Total estimado:{" "}
+            <strong className="text-base font-bold text-primary">{brl(Number(quote.total))}</strong>
           </p>
         </div>
+
         <div className="flex flex-wrap items-center gap-2">
+          {/* Seletor de Situação */}
           <select
             value={quote.status}
             onChange={(e) => void onStatus(e.target.value as (typeof STATUS)[number])}
-            className="h-9 rounded-md border border-border bg-background px-2 text-sm"
+            className="h-9 rounded-md border border-border bg-background px-2.5 text-xs font-semibold"
           >
             {STATUS.map((s) => (
               <option key={s} value={s}>
-                {s}
+                {s.toUpperCase()}
               </option>
             ))}
           </select>
-          <Button size="sm" onClick={download}>
-            <FileSpreadsheet className="mr-2 h-4 w-4" /> Planilha
+
+          {/* Botão de Download de Planilha Padrão da Marca */}
+          <Button size="sm" onClick={download} className="gap-1.5">
+            <FileSpreadsheet className="size-4" /> Planilha {brandName}
           </Button>
-          <Button size="sm" variant="outline" onClick={() => setOpen((v) => !v)}>
-            {open ? "Ocultar" : "Itens"}
+
+          {/* Abertura do WhatsApp do Cliente */}
+          {cleanPhone.length >= 10 && (
+            <a href={whatsappUrl} target="_blank" rel="noopener noreferrer">
+              <Button variant="outline" size="sm" className="gap-1.5 border-emerald-500/40 text-emerald-700 hover:bg-emerald-50">
+                <MessageCircle className="size-4" /> WhatsApp
+              </Button>
+            </a>
+          )}
+
+          {/* Ver Detalhamento dos Itens */}
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setOpen((v) => !v)}
+            className="gap-1 text-xs"
+          >
+            {open ? (
+              <>
+                <ChevronUp className="size-3.5" /> Ocultar
+              </>
+            ) : (
+              <>
+                <ChevronDown className="size-3.5" /> Itens ({quote.items.length})
+              </>
+            )}
           </Button>
         </div>
       </div>
 
       {open && (
-        <div className="mt-3 max-h-72 overflow-auto rounded-lg bg-muted/40 p-3 text-xs">
-          {quote.items.map((i) => (
-            <div key={i.code} className="flex justify-between gap-3 border-b border-border/50 py-1">
-              <span>
-                {i.code} · {i.name}
-                {i.pack > 1 ? ` · coletivo ${i.pack}` : ""}
+        <div className="mt-4 max-h-80 overflow-auto rounded-lg border border-border bg-muted/40 p-3 text-xs">
+          <div className="grid grid-cols-12 font-bold text-muted-foreground pb-2 border-b border-border/60">
+            <span className="col-span-2">Código</span>
+            <span className="col-span-5">Produto</span>
+            <span className="col-span-2 text-center">Qtd</span>
+            <span className="col-span-3 text-right">Preço Unit. / Total</span>
+          </div>
+          {quote.items.map((i, idx) => (
+            <div
+              key={`${i.code}-${idx}`}
+              className="grid grid-cols-12 items-center py-2 border-b border-border/30 last:border-0"
+            >
+              <span className="col-span-2 font-mono text-muted-foreground">#{i.code}</span>
+              <span className="col-span-5 font-medium leading-tight">
+                {i.name}
+                {i.pack > 1 && (
+                  <span className="text-[10px] text-muted-foreground block">
+                    (coletivo com {i.pack} un)
+                  </span>
+                )}
               </span>
-              <span className="whitespace-nowrap">
-                {i.qty} un × {brl(i.unitPrice)} = <strong>{brl(i.qty * i.unitPrice)}</strong>
+              <span className="col-span-2 text-center font-bold">{i.qty} un</span>
+              <span className="col-span-3 text-right">
+                <span className="text-muted-foreground">{brl(i.unitPrice)} un</span>
+                <span className="block font-bold text-primary">{brl(i.qty * i.unitPrice)}</span>
               </span>
             </div>
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+/* ---------------- Card de Reativação de Cliente ---------------- */
+
+function ReactivationCard({ lead }: { lead: ReactivationLead }) {
+  const cleanPhone = onlyDigits(lead.phone);
+  const firstName = lead.name.split(" ")[0];
+
+  // Mensagem personalizada de reativação
+  const message = lead.has_ordered
+    ? `Olá, *${firstName}*! Tudo bem? Aqui é da *Rede Representações*.\n\nPassando para saber como estão as vendas dos produtos na sua loja (*${lead.name}*) e se precisa de reposição de estoque para as marcas *Belliz* e *Payot*. Estamos com ótimas condições de entrega!`
+    : `Olá, *${firstName}*! Tudo bem? Aqui é da *Rede Representações*.\n\nVimos que você se cadastrou no nosso Catálogo Digital para a loja *${lead.name}* e desbloqueou seu cupom de *15% de desconto* de boas-vindas.\n\nVocê gostaria de tirar alguma dúvida sobre os produtos das marcas *Belliz* ou *Payot*? Posso te ajudar a montar o mix ideal para o giro da sua loja!`;
+
+  const whatsappUrl = `https://wa.me/55${cleanPhone}?text=${encodeURIComponent(message)}`;
+
+  return (
+    <div
+      className={cn(
+        "rounded-xl border p-4 transition-all bg-card",
+        !lead.has_ordered
+          ? "border-amber-500/40 bg-gradient-to-r from-amber-500/5 via-card to-card hover:border-amber-500/70"
+          : "border-border hover:border-primary/40"
+      )}
+    >
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2">
+            {!lead.has_ordered ? (
+              <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2.5 py-0.5 text-[11px] font-bold text-amber-700">
+                <AlertCircle className="size-3" /> Sem Pedido · Oportunidade de Reativação
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700">
+                <CheckCircle2 className="size-3" /> Cliente Ativo ({lead.quotes_count} pedidos)
+              </span>
+            )}
+            <span className="text-xs text-muted-foreground">
+              Cadastrado em {new Date(lead.created_at).toLocaleDateString("pt-BR")}
+            </span>
+          </div>
+
+          <h3 className="mt-1 text-base font-bold text-foreground">{lead.name}</h3>
+          <p className="text-xs text-muted-foreground">
+            CNPJ: <strong className="font-mono text-foreground">{formatCnpj(lead.cnpj)}</strong> · WhatsApp:{" "}
+            <strong className="text-foreground">{formatPhone(lead.phone)}</strong>
+          </p>
+
+          {lead.has_ordered && (
+            <p className="mt-1 text-xs text-muted-foreground">
+              Volume total orçado: <strong className="text-primary font-bold">{brl(lead.quotes_total)}</strong>
+              {lead.last_quote_at && ` · Último pedido em ${new Date(lead.last_quote_at).toLocaleDateString("pt-BR")}`}
+            </p>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2">
+          {cleanPhone.length >= 10 ? (
+            <a href={whatsappUrl} target="_blank" rel="noopener noreferrer">
+              <Button
+                size="sm"
+                className={cn(
+                  "gap-2 font-bold shadow-sm",
+                  !lead.has_ordered
+                    ? "bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white"
+                    : "bg-emerald-600 hover:bg-emerald-700 text-white"
+                )}
+              >
+                <MessageCircle className="size-4" />
+                {!lead.has_ordered ? "Reativar no WhatsApp" : "Enviar Mensagem"}
+              </Button>
+            </a>
+          ) : (
+            <span className="text-xs text-muted-foreground">Telefone inválido</span>
+          )}
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              navigator.clipboard.writeText(`${lead.name} - ${lead.phone} - ${lead.cnpj}`);
+              toast.success("Dados do cliente copiados!");
+            }}
+            className="text-xs"
+          >
+            Copiar Dados
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

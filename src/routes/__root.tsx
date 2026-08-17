@@ -82,11 +82,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       {
         name: "description",
         content:
-          "Catálogo online das marcas representadas. Monte seu pedido por marca e receba o orçamento no WhatsApp.",
+          "Catálogo online das marcas representadas. Monte seu pedido por marca e gere o orçamento para envio.",
       },
-      { name: "author", content: "Representante Comercial" },
+      { name: "author", content: "Rede Representações" },
       { property: "og:title", content: "Catálogo de Marcas — Peça seu orçamento" },
-      { property: "og:description", content: "Monte seu pedido por marca e receba o orçamento no WhatsApp." },
+      { property: "og:description", content: "Monte seu pedido por marca e gere o orçamento para envio." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:site", content: "@Lovable" },

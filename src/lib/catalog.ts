@@ -48,7 +48,7 @@ export const BRANDS: Record<BrandId, { id: BrandId; name: string; tagline: strin
 
 // EDITE AQUI: seu WhatsApp em formato internacional apenas com dígitos.
 export const WHATSAPP_NUMBER = "5571981862336";
-export const REP_NAME = "Representante Comercial";
+export const REP_NAME = "Rede Representações";
 
 // Imagens oficiais dos produtos Belliz (bellizcompany.com.br)
 export const BELLIZ_IMAGES: Record<string, string> = { ...(bellizImagesRaw as Record<string, string>) };

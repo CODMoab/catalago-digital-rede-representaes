@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Minus,
   Plus,
@@ -8,13 +8,15 @@ import {
   FileDown,
   FileSpreadsheet,
   MessageCircle,
-
   X,
   Search,
   ArrowLeft,
   Sparkles,
   Package,
   BarChart3,
+  Gift,
+  Tag,
+  CheckCircle2,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -50,11 +52,19 @@ import {
   type QuoteLine,
   type QuoteMeta,
 } from "@/lib/quote-pdf";
+import {
+  getLocalCustomer,
+  getDiscountedPrice,
+  formatPhone,
+  DEFAULT_DISCOUNT_PERCENT,
+  type CustomerProfile,
+} from "@/lib/leads";
 import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
 
 import { cn } from "@/lib/utils";
 import { CatalogGallery } from "@/components/CatalogGallery";
+import { WelcomeGateModal } from "@/components/WelcomeGateModal";
 
 export const Route = createFileRoute("/")({
   loader: async () => {
@@ -64,17 +74,17 @@ export const Route = createFileRoute("/")({
   },
   head: () => ({
     meta: [
-      { title: "Catálogo Belliz & Payot — Pedido por WhatsApp" },
+      { title: "Catálogo Belliz & Payot — Peça seu orçamento" },
       {
         name: "description",
         content:
-          "Catálogo oficial das marcas Belliz (Ricca, Enox, Kess, Vertix) e Payot. Monte seu pedido e envie direto pelo WhatsApp.",
+          "Catálogo oficial das marcas Belliz (Ricca, Enox, Kess, Vertix) e Payot. Monte seu pedido e gere o orçamento para envio.",
       },
       { property: "og:title", content: "Catálogo Belliz & Payot" },
       {
         property: "og:description",
         content:
-          "Monte seu pedido das marcas Belliz e Payot e receba o orçamento no WhatsApp.",
+          "Monte seu pedido das marcas Belliz e Payot e gere o orçamento para envio.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -98,34 +108,73 @@ function CatalogPage() {
   const [cart, setCart] = useState<Cart>(emptyCart);
   const [openQuote, setOpenQuote] = useState<BrandId | null>(null);
   const [customer, setCustomer] = useState({ name: "", phone: "", cnpj: "" });
+  const [customerProfile, setCustomerProfile] = useState<CustomerProfile | null>(null);
+  const [welcomeOpen, setWelcomeOpen] = useState(false);
   const save = useServerFn(submitQuote);
+
+  useEffect(() => {
+    const saved = getLocalCustomer();
+    if (saved) {
+      setCustomerProfile(saved);
+      setCustomer({
+        name: saved.name,
+        phone: formatPhone(saved.phone),
+        cnpj: formatCnpj(saved.cnpj),
+      });
+    } else {
+      // Abre o modal de entrada com roleta para visitantes de primeiro acesso
+      setWelcomeOpen(true);
+    }
+  }, []);
+
+  const handleCustomerReady = (prof: CustomerProfile | null) => {
+    setCustomerProfile(prof);
+    if (prof) {
+      setCustomer({
+        name: prof.name,
+        phone: formatPhone(prof.phone),
+        cnpj: formatCnpj(prof.cnpj),
+      });
+    } else {
+      setCustomer({ name: "", phone: "", cnpj: "" });
+    }
+  };
+
+  const discountPercent = customerProfile?.discountPercent || DEFAULT_DISCOUNT_PERCENT;
 
   const totals = useMemo(() => {
     const bellizItems = Object.entries(cart.belliz);
     const payotItems = Object.entries(cart.payot);
     let bellizTotal = 0;
+    let bellizOriginal = 0;
     let bellizCount = 0;
     for (const [code, qty] of bellizItems) {
       const p = BELLIZ.find((x) => x.code === code);
       if (!p) continue;
       bellizCount += qty;
-      const unit = p.priceColetivo && p.coletivo ? p.priceColetivo / p.coletivo : p.priceUnit;
-      bellizTotal += unit * qty;
+      const baseUnit = p.priceColetivo && p.coletivo ? p.priceColetivo / p.coletivo : p.priceUnit;
+      const discountedUnit = getDiscountedPrice(baseUnit, discountPercent);
+      bellizTotal += discountedUnit * qty;
+      bellizOriginal += baseUnit * qty;
     }
     let payotTotal = 0;
+    let payotOriginal = 0;
     let payotCount = 0;
     for (const [code, qty] of payotItems) {
       const p = PAYOT.find((x) => x.code === code);
       if (!p) continue;
       payotCount += qty;
-      payotTotal += p.price * qty;
+      const baseUnit = p.price;
+      const discountedUnit = getDiscountedPrice(baseUnit, discountPercent);
+      payotTotal += discountedUnit * qty;
+      payotOriginal += baseUnit * qty;
     }
     return {
-      belliz: { count: bellizCount, total: bellizTotal, items: bellizItems.length },
-      payot: { count: payotCount, total: payotTotal, items: payotItems.length },
+      belliz: { count: bellizCount, total: bellizTotal, original: bellizOriginal, items: bellizItems.length },
+      payot: { count: payotCount, total: payotTotal, original: payotOriginal, items: payotItems.length },
       all: bellizCount + payotCount,
     };
-  }, [cart]);
+  }, [cart, discountPercent]);
 
   const setQty = (brand: BrandId, code: string, qty: number) => {
     setCart((prev) => {
@@ -142,8 +191,9 @@ function CatalogPage() {
       for (const [code, qty] of Object.entries(cart.belliz)) {
         const p = BELLIZ.find((x) => x.code === code);
         if (!p) continue;
-        const unit =
+        const baseUnit =
           p.priceColetivo && p.coletivo ? p.priceColetivo / p.coletivo : p.priceUnit;
+        const unit = getDiscountedPrice(baseUnit, discountPercent);
         out.push({
           brand: BRANDS.belliz.name,
           code: p.code,
@@ -158,6 +208,7 @@ function CatalogPage() {
       for (const [code, qty] of Object.entries(cart.payot)) {
         const p = PAYOT.find((x) => x.code === code);
         if (!p) continue;
+        const unit = getDiscountedPrice(p.price, discountPercent);
         out.push({
           brand: BRANDS.payot.name,
           code: p.code,
@@ -165,7 +216,7 @@ function CatalogPage() {
           line: p.line,
           pack: 1,
           qty,
-          unitPrice: p.price,
+          unitPrice: unit,
         });
       }
     }
@@ -178,12 +229,13 @@ function CatalogPage() {
       const p = src.find((x) => x.code === code) as any;
       if (!p) return [];
       const pack = brand === "belliz" ? Math.max(1, p.coletivo || 1) : 1;
-      const unit =
+      const baseUnit =
         brand === "belliz"
           ? p.priceColetivo && p.coletivo
             ? p.priceColetivo / p.coletivo
             : p.priceUnit
           : p.price;
+      const unit = getDiscountedPrice(baseUnit, discountPercent);
       return [
         {
           code: p.code,
@@ -282,7 +334,7 @@ function CatalogPage() {
       `*Novo pedido — ${BRANDS[brand].name}*\n` +
       `Cliente: ${customer.name}\n` +
       `Telefone: ${customer.phone}\n` + `CNPJ: ${customer.cnpj}\n` +
-      `Itens: ${data.lines.length} · Total estimado: ${currency(data.total)}\n` +
+      `Itens: ${data.lines.length} · Total estimado: ${currency(data.total)} (com ${discountPercent}% OFF)\n` +
       `Detalhamento completo no PDF em anexo.`;
     const result = await shareQuotePdf(data.blob, data.fileName, msg);
     toast.success(
@@ -291,7 +343,6 @@ function CatalogPage() {
         : "PDF baixado — anexe no WhatsApp que abrimos para você.",
     );
   };
-
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -302,10 +353,19 @@ function CatalogPage() {
         setOpenQuote={setOpenQuote}
         activeBrand={activeBrand}
         setActiveBrand={setActiveBrand}
+        customerProfile={customerProfile}
+        onOpenWelcome={() => setWelcomeOpen(true)}
+        discountPercent={discountPercent}
       />
 
       {activeBrand === null ? (
-        <LandingView setActiveBrand={setActiveBrand} totals={totals} />
+        <LandingView
+          setActiveBrand={setActiveBrand}
+          totals={totals}
+          customerProfile={customerProfile}
+          onOpenWelcome={() => setWelcomeOpen(true)}
+          discountPercent={discountPercent}
+        />
       ) : (
         <BrandView
           brand={activeBrand}
@@ -313,6 +373,7 @@ function CatalogPage() {
           setQty={setQty}
           totals={totals}
           onOpenQuote={() => setOpenQuote(activeBrand)}
+          discountPercent={discountPercent}
         />
       )}
 
@@ -329,6 +390,14 @@ function CatalogPage() {
         onSend={sendQuote}
         onDownload={downloadQuote}
         onDownloadSheet={downloadSheet}
+        discountPercent={discountPercent}
+      />
+
+      <WelcomeGateModal
+        open={welcomeOpen}
+        onOpenChange={setWelcomeOpen}
+        onCustomerReady={handleCustomerReady}
+        currentCustomer={customerProfile}
       />
     </div>
   );
@@ -343,10 +412,13 @@ function SiteHeader({
   setOpenQuote,
   activeBrand,
   setActiveBrand,
+  customerProfile,
+  onOpenWelcome,
+  discountPercent,
 }: {
   totals: {
-    belliz: { count: number; total: number; items: number };
-    payot: { count: number; total: number; items: number };
+    belliz: { count: number; total: number; original?: number; items: number };
+    payot: { count: number; total: number; original?: number; items: number };
     all: number;
   };
   cart: Cart;
@@ -354,6 +426,9 @@ function SiteHeader({
   setOpenQuote: (b: BrandId | null) => void;
   activeBrand: BrandId | null;
   setActiveBrand: (b: BrandId | null) => void;
+  customerProfile: CustomerProfile | null;
+  onOpenWelcome: () => void;
+  discountPercent: number;
 }) {
   return (
     <header className="sticky top-0 z-40 border-b border-border/60 bg-background/85 backdrop-blur">
@@ -372,6 +447,33 @@ function SiteHeader({
         </button>
 
         <div className="flex items-center gap-2">
+          {/* Identificação do Cliente / Roleta */}
+          {customerProfile ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onOpenWelcome}
+              className="gap-1.5 border-primary/30 bg-primary/5 text-xs hover:bg-primary/10 font-semibold text-foreground"
+            >
+              <Gift className="size-3.5 text-primary" />
+              <span className="hidden md:inline max-w-[120px] truncate">
+                {customerProfile.name}
+              </span>
+              <span className="rounded-full bg-primary px-1.5 py-0.2 text-[10px] font-bold text-primary-foreground">
+                {discountPercent}% OFF
+              </span>
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              onClick={onOpenWelcome}
+              className="gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold shadow-sm"
+            >
+              <Gift className="size-3.5" />
+              <span className="hidden sm:inline">Roleta da</span> Sorte
+            </Button>
+          )}
+
           {activeBrand && (
             <Button
               variant="ghost"
@@ -382,6 +484,7 @@ function SiteHeader({
               <ArrowLeft className="mr-1 size-4" /> Marcas
             </Button>
           )}
+
           <Sheet>
             <SheetTrigger asChild>
               <Button variant="outline" size="sm" className="gap-2">
@@ -427,12 +530,13 @@ function SiteHeader({
                               ? BELLIZ.find((x) => x.code === code)
                               : PAYOT.find((x) => x.code === code);
                           if (!p) return null;
-                          const unit =
+                          const baseUnit =
                             b === "belliz"
                               ? (p as any).priceColetivo && (p as any).coletivo
                                 ? (p as any).priceColetivo / (p as any).coletivo
                                 : (p as any).priceUnit
                               : (p as any).price;
+                          const unit = getDiscountedPrice(baseUnit, discountPercent);
                           const coletivo =
                             b === "belliz" ? (p as any).coletivo || 1 : 1;
                           const img = productImage(b, p.code);
@@ -510,7 +614,7 @@ function SiteHeader({
                 })}
                 {totals.all > 0 && (
                   <p className="text-[11px] text-muted-foreground">
-                    Entrega CIF (frete incluso) · valores sem impostos. Ajuste as
+                    Entrega CIF (frete incluso) · valores sem impostos (com {discountPercent}% OFF). Ajuste as
                     quantidades aqui antes de enviar.
                   </p>
                 )}
@@ -521,7 +625,6 @@ function SiteHeader({
                   </p>
                 )}
               </div>
-
             </SheetContent>
           </Sheet>
         </div>
@@ -535,39 +638,66 @@ function SiteHeader({
 function LandingView({
   setActiveBrand,
   totals,
+  customerProfile,
+  onOpenWelcome,
+  discountPercent,
 }: {
   setActiveBrand: (b: BrandId) => void;
   totals: {
-    belliz: { count: number; total: number; items: number };
-    payot: { count: number; total: number; items: number };
+    belliz: { count: number; total: number; original?: number; items: number };
+    payot: { count: number; total: number; original?: number; items: number };
   };
+  customerProfile: CustomerProfile | null;
+  onOpenWelcome: () => void;
+  discountPercent: number;
 }) {
   return (
     <>
       <section className="border-b border-border/60 bg-gradient-to-b from-primary/10 to-transparent">
         <div className="mx-auto max-w-6xl px-4 py-16 sm:py-24">
-          <span className="inline-flex items-center rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
-            Catálogo oficial
-          </span>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+              Catálogo oficial
+            </span>
+            {customerProfile && (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-bold text-primary">
+                <Gift className="size-3.5" /> 15% OFF Ativo para {customerProfile.name}
+              </span>
+            )}
+          </div>
+
           <h1 className="mt-4 text-4xl font-bold tracking-tight sm:text-6xl">
             As marcas <span className="text-primary">Belliz</span> e{" "}
             <span className="text-primary">Payot</span>,
             <br className="hidden sm:block" /> na palma da sua mão.
           </h1>
+
           <p className="mt-4 max-w-2xl text-base text-muted-foreground sm:text-lg">
-            Monte seu pedido de cada marca e envie direto para o WhatsApp.
+            Monte seu pedido de cada marca. Este pedido gera o orçamento para envio.
           </p>
-          <p className="mt-3 max-w-2xl text-sm text-muted-foreground">
-            Dentro de cada marca você também encontra o{" "}
-            <span className="font-semibold text-foreground">
-              plano de sortimento Curva A
-            </span>
-            : a Rede Representações desenha com você o mix de maior giro dentro
-            da verba, marca a marca.
-          </p>
+
+          {customerProfile ? (
+            <div className="mt-6 max-w-xl rounded-xl border border-primary/25 bg-primary/5 p-4 text-xs">
+              <p className="font-bold text-foreground flex items-center gap-1.5">
+                <Sparkles className="size-4 text-primary" /> Condição Especial de Boas-Vindas
+              </p>
+              <p className="mt-1 text-muted-foreground">
+                Faça seu <strong>1º pedido agora</strong> e garanta <strong>15% de desconto fixo</strong> para todas as próximas reposições da sua loja.
+              </p>
+            </div>
+          ) : (
+            <div className="mt-6 flex flex-wrap items-center gap-3">
+              <Button
+                size="lg"
+                onClick={onOpenWelcome}
+                className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-bold shadow-md"
+              >
+                <Gift className="size-5" /> Girar Roleta da Sorte
+              </Button>
+            </div>
+          )}
         </div>
       </section>
-
 
       <section className="mx-auto max-w-6xl px-4 py-12">
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
@@ -623,15 +753,17 @@ function BrandView({
   setQty,
   totals,
   onOpenQuote,
+  discountPercent,
 }: {
   brand: BrandId;
   cart: Cart;
   setQty: (brand: BrandId, code: string, qty: number) => void;
   totals: {
-    belliz: { count: number; total: number; items: number };
-    payot: { count: number; total: number; items: number };
+    belliz: { count: number; total: number; original?: number; items: number };
+    payot: { count: number; total: number; original?: number; items: number };
   };
   onOpenQuote: () => void;
+  discountPercent: number;
 }) {
   const info = BRANDS[brand];
   const [search, setSearch] = useState("");
@@ -689,9 +821,8 @@ function BrandView({
             Plano de sortimento Curva A · {info.name}
           </p>
           <p className="mt-1 text-sm text-muted-foreground">
-            A Rede Representações monta com você o mix {info.name} de maior giro
-            dentro da sua verba, distribuído em curva ABC. Cada plano é exclusivo
-            desta marca — sem misturar indústrias no mesmo pedido.
+            A Rede Representações desenha com você o mix de maior giro dentro
+            da verba, marca a marca. Cada plano é exclusivo desta marca — sem misturar indústrias no mesmo pedido.
           </p>
         </div>
         <Button asChild size="lg" className="gap-2">
@@ -746,7 +877,7 @@ function BrandView({
       <p className="mb-4 rounded-lg border border-border bg-muted/50 p-3 text-xs text-muted-foreground">
         <strong className="text-foreground">Condições:</strong> entrega{" "}
         <strong className="text-foreground">CIF</strong> (frete incluso) e valores{" "}
-        <strong className="text-foreground">sem impostos</strong>.
+        <strong className="text-foreground">sem impostos</strong> (com {discountPercent}% de desconto aplicado).
       </p>
 
       {brand === "belliz" && (
@@ -756,7 +887,6 @@ function BrandView({
         </p>
       )}
 
-
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {visible.map((p) => (
           <ProductCard
@@ -765,6 +895,7 @@ function BrandView({
             product={p}
             qty={cart[brand][p.code] ?? 0}
             setQty={(q) => setQty(brand, p.code, q)}
+            discountPercent={discountPercent}
           />
         ))}
       </div>
@@ -804,29 +935,41 @@ function ProductCard({
   product,
   qty,
   setQty,
+  discountPercent,
 }: {
   brand: BrandId;
   product: AnyProduct;
   qty: number;
   setQty: (q: number) => void;
+  discountPercent: number;
 }) {
   const isBelliz = brand === "belliz";
   const p = product as any;
   const img = productImage(brand, p.code);
 
   const coletivo = isBelliz ? Math.max(1, p.coletivo || 1) : 1;
-  const unitPrice = isBelliz
+  const baseUnit = isBelliz
     ? p.priceColetivo && p.coletivo
       ? p.priceColetivo / p.coletivo
       : p.priceUnit
     : p.price;
+
+  const unitPrice = getDiscountedPrice(baseUnit, discountPercent);
+  const baseColetivo = isBelliz ? (p.priceColetivo ?? p.priceUnit * coletivo) : baseUnit;
+  const coletivoPrice = isBelliz ? getDiscountedPrice(baseColetivo, discountPercent) : unitPrice;
 
   const step = coletivo;
   const inc = () => setQty(qty === 0 ? step : qty + step);
   const dec = () => setQty(Math.max(0, qty - step));
 
   return (
-    <article className="group flex flex-col rounded-xl border border-border bg-card p-4 transition-all hover:border-primary/50 hover:shadow-md">
+    <article className="group flex flex-col rounded-xl border border-border bg-card p-4 transition-all hover:border-primary/50 hover:shadow-md relative">
+      {discountPercent > 0 && (
+        <span className="absolute top-3 left-3 z-10 rounded-md bg-primary px-2 py-0.5 text-[10px] font-black text-primary-foreground shadow-sm">
+          -{discountPercent}% OFF
+        </span>
+      )}
+
       <div className="mb-3 flex h-40 items-center justify-center overflow-hidden rounded-lg bg-white">
         {img ? (
           <img
@@ -854,7 +997,6 @@ function ProductCard({
         </span>
       </div>
 
-
       <h3 className="mt-3 line-clamp-2 min-h-[2.75rem] text-sm font-semibold leading-snug">
         {p.name}
       </h3>
@@ -863,28 +1005,37 @@ function ProductCard({
         <div>
           {isBelliz ? (
             <>
-              <p className="text-lg font-bold text-primary">
-                {currency(p.priceColetivo ?? p.priceUnit * coletivo)}
-              </p>
+              <div className="flex items-baseline gap-2">
+                <p className="text-lg font-bold text-primary">
+                  {currency(coletivoPrice)}
+                </p>
+                {discountPercent > 0 && (
+                  <p className="text-xs text-muted-foreground line-through">
+                    {currency(baseColetivo)}
+                  </p>
+                )}
+              </div>
               <p className="text-[11px] text-muted-foreground">
                 coletivo com {coletivo} un · {currency(unitPrice)} / unidade
               </p>
             </>
           ) : (
             <>
-              <p className="text-lg font-bold text-primary">{currency(unitPrice)}</p>
-              {p.priceFull && p.priceFull > p.price ? (
-                <p className="text-[11px] text-muted-foreground line-through">
-                  {currency(p.priceFull)}
-                </p>
-              ) : (
-                <p className="text-[11px] text-muted-foreground">preço unitário</p>
-              )}
+              <div className="flex items-baseline gap-2">
+                <p className="text-lg font-bold text-primary">{currency(unitPrice)}</p>
+                {discountPercent > 0 && (
+                  <p className="text-xs text-muted-foreground line-through">
+                    {currency(baseUnit)}
+                  </p>
+                )}
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                preço unitário {discountPercent > 0 && `(com ${discountPercent}% OFF)`}
+              </p>
             </>
           )}
         </div>
       </div>
-
 
       <div className="mt-4">
         {qty === 0 ? (
@@ -926,20 +1077,22 @@ function QuoteDrawer({
   onSend,
   onDownload,
   onDownloadSheet,
+  discountPercent,
 }: {
   open: BrandId | null;
   onClose: () => void;
   cart: Cart;
   setQty: (brand: BrandId, code: string, qty: number) => void;
   totals: {
-    belliz: { count: number; total: number; items: number };
-    payot: { count: number; total: number; items: number };
+    belliz: { count: number; total: number; original?: number; items: number };
+    payot: { count: number; total: number; original?: number; items: number };
   };
   customer: { name: string; phone: string; cnpj: string };
   setCustomer: (v: { name: string; phone: string; cnpj: string }) => void;
   onSend: (b: BrandId) => void;
   onDownload: (b: BrandId) => void;
   onDownloadSheet: (b: BrandId) => void;
+  discountPercent: number;
 }) {
   const brand = open;
   if (!brand) return (
@@ -959,9 +1112,28 @@ function QuoteDrawer({
         </SheetHeader>
         <div className="mt-4 flex h-[calc(100vh-8rem)] flex-col">
           <div className="flex-1 space-y-3 overflow-y-auto pr-1">
-            <p className="rounded-md border border-border bg-muted/50 p-2 text-[11px] text-muted-foreground">
-              Entrega <strong>CIF</strong> (frete incluso) · valores <strong>sem impostos</strong>.
-            </p>
+            <div className="rounded-md border border-border bg-muted/50 p-2.5 text-[11px] text-muted-foreground flex items-center justify-between">
+              <span>
+                Entrega <strong>CIF</strong> (frete incluso) · valores <strong>sem impostos</strong>.
+              </span>
+              {discountPercent > 0 && (
+                <span className="rounded bg-primary/10 px-1.5 py-0.5 font-bold text-primary">
+                  {discountPercent}% OFF Ativo
+                </span>
+              )}
+            </div>
+
+            {discountPercent > 0 && (
+              <div className="rounded-lg border border-primary/20 bg-primary/5 p-2.5 text-xs text-foreground">
+                <p className="font-bold text-primary flex items-center gap-1.5">
+                  <Sparkles className="size-3.5" /> 1º Pedido com 15% OFF
+                </p>
+                <p className="mt-0.5 text-[11px] text-muted-foreground">
+                  Finalize seu 1º pedido para manter a condição especial de 15% em todas as suas próximas reposições.
+                </p>
+              </div>
+            )}
+
             {entries.length === 0 && (
               <p className="text-sm text-muted-foreground">
                 Seu carrinho está vazio.
@@ -973,12 +1145,13 @@ function QuoteDrawer({
                   ? BELLIZ.find((x) => x.code === code)
                   : PAYOT.find((x) => x.code === code);
               if (!p) return null;
-              const unit =
+              const baseUnit =
                 brand === "belliz"
                   ? (p as any).priceColetivo && (p as any).coletivo
                     ? (p as any).priceColetivo / (p as any).coletivo
                     : (p as any).priceUnit
                   : (p as any).price;
+              const unit = getDiscountedPrice(baseUnit, discountPercent);
               const coletivo = brand === "belliz" ? (p as any).coletivo || 1 : 1;
               const img = productImage(brand, p.code);
               return (
@@ -1006,10 +1179,17 @@ function QuoteDrawer({
                         #{p.code}
                       </p>
                       <p className="text-sm font-semibold leading-snug">{p.name}</p>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {currency(unit)} / un
-                        {brand === "belliz" && ` · coletivo de ${coletivo} un`}
-                      </p>
+                      <div className="mt-1 flex items-baseline gap-1.5 text-xs">
+                        <span className="font-semibold text-primary">{currency(unit)} / un</span>
+                        {discountPercent > 0 && (
+                          <span className="text-[10px] text-muted-foreground line-through">
+                            {currency(baseUnit)}
+                          </span>
+                        )}
+                        {brand === "belliz" && (
+                          <span className="text-muted-foreground">· coletivo de {coletivo} un</span>
+                        )}
+                      </div>
                     </div>
                     <Button
                       variant="ghost"
@@ -1066,6 +1246,12 @@ function QuoteDrawer({
                   <span>Unidades</span>
                   <span>{t.count}</span>
                 </div>
+                {discountPercent > 0 && t.original && t.original > t.total && (
+                  <div className="mt-1 flex justify-between text-xs text-primary font-semibold">
+                    <span>Economia com 15% OFF</span>
+                    <span>- {currency(t.original - t.total)}</span>
+                  </div>
+                )}
                 <div className="mt-2 flex justify-between border-t border-border pt-2 text-base font-bold">
                   <span>Total do pedido</span>
                   <span className="text-primary">{currency(t.total)}</span>
@@ -1075,7 +1261,6 @@ function QuoteDrawer({
                 </p>
               </div>
             )}
-
 
             <div className="space-y-3 pt-2">
               <div>
@@ -1129,7 +1314,7 @@ function QuoteDrawer({
                 disabled={entries.length === 0}
               >
                 <MessageCircle className="size-4" />
-                Enviar PDF no WhatsApp
+                Enviar Pedido
               </Button>
             </div>
             <Button
@@ -1149,11 +1334,9 @@ function QuoteDrawer({
               <FileSpreadsheet className="size-4" /> Baixar planilha do pedido (padrão {BRANDS[brand].name})
             </Button>
             <p className="mt-1 text-center text-[11px] text-muted-foreground">
-              No celular o WhatsApp abre já com o PDF anexado; no computador o PDF é
-              baixado para você anexar.
+              Gera o orçamento detalhado com o desconto de 15% aplicado.
             </p>
           </div>
-
         </div>
       </SheetContent>
     </Sheet>

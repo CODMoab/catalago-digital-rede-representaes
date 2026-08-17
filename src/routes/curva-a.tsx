@@ -1,12 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
   BarChart3,
   Check,
   FileDown,
   FileSpreadsheet,
-
+  Gift,
   MessageCircle,
   Minus,
   Plus,
@@ -20,6 +20,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { BRANDS, REP_NAME, WHATSAPP_NUMBER, applyCatalog, productImage, type BrandId } from "@/lib/catalog";
+import { getLocalCustomer, formatPhone } from "@/lib/leads";
 import { getCatalog } from "@/lib/catalog.functions";
 import { submitQuote, type QuoteItem } from "@/lib/quotes.functions";
 import { buildOrderSheet, downloadBlob, orderSheetFileName } from "@/lib/order-sheet";
@@ -97,6 +98,17 @@ function CurvaAPage() {
   const [items, setItems] = useState<SuggestedItem[] | null>(null);
   const [customer, setCustomer] = useState({ name: "", phone: "", cnpj: "" });
   const save = useServerFn(submitQuote);
+
+  useEffect(() => {
+    const saved = getLocalCustomer();
+    if (saved) {
+      setCustomer({
+        name: saved.name,
+        phone: formatPhone(saved.phone),
+        cnpj: formatCnpj(saved.cnpj),
+      });
+    }
+  }, []);
 
   const budgetNumber = Number(budget.replace(/[^\d]/g, "")) || 0;
 
