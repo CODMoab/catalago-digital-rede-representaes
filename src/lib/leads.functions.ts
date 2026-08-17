@@ -6,6 +6,8 @@ const saveLeadSchema = z.object({
   name: z.string().min(2).max(150),
   phone: z.string().min(8).max(30),
   cnpj: z.string().min(14).max(25),
+  city: z.string().max(120).default(""),
+  state: z.string().max(2).default("BA"),
   discount_percent: z.number().default(15),
   source: z.string().default("welcome_roulette"),
 });
@@ -23,6 +25,8 @@ export const saveLead = createServerFn({ method: "POST" })
             name: data.name,
             phone: data.phone,
             cnpj: data.cnpj,
+            city: data.city,
+            state: data.state,
             discount_percent: data.discount_percent,
             source: data.source,
             updated_at: new Date().toISOString(),
@@ -33,12 +37,14 @@ export const saveLead = createServerFn({ method: "POST" })
         .single();
 
       if (error) {
-        console.warn("Aviso ao salvar lead no Supabase (seguindo com fallback):", error.message);
+        // Não mentir sucesso: se não gravou, o lead existe só no navegador do cliente
+        console.error("[leads] Falha ao gravar lead no Supabase:", error.message);
+        return { success: false, error: error.message, lead: data };
       }
-      return { success: true, lead: row ?? data };
+      return { success: true, error: null as string | null, lead: row ?? data };
     } catch (err: any) {
-      console.warn("Exceção ao salvar lead no servidor:", err?.message);
-      return { success: true, lead: data };
+      console.error("[leads] Exceção ao gravar lead no servidor:", err?.message);
+      return { success: false, error: String(err?.message ?? err), lead: data };
     }
   });
 
@@ -68,6 +74,8 @@ export const findLead = createServerFn({ method: "POST" })
             name: (lead as any).name,
             phone: (lead as any).phone,
             cnpj: (lead as any).cnpj,
+            city: (lead as any).city || "",
+            state: (lead as any).state || "BA",
             discountPercent: (lead as any).discount_percent || 15,
             registeredAt: (lead as any).created_at || new Date().toISOString(),
             spunRoulette: true,
@@ -91,6 +99,8 @@ export const findLead = createServerFn({ method: "POST" })
             name: quote.customer_name,
             phone: quote.customer_phone,
             cnpj: quote.customer_cnpj,
+            city: "",
+            state: "BA",
             discountPercent: 15,
             registeredAt: quote.created_at,
             spunRoulette: true,
@@ -110,6 +120,8 @@ export type ReactivationLead = {
   name: string;
   phone: string;
   cnpj: string;
+  city: string;
+  state: string;
   discount_percent: number;
   created_at: string;
   quotes_count: number;
@@ -174,6 +186,8 @@ export const listLeadsForReactivation = createServerFn({ method: "GET" })
           name: l.name,
           phone: l.phone,
           cnpj: l.cnpj,
+          city: l.city || "",
+          state: l.state || "BA",
           discount_percent: l.discount_percent || 15,
           created_at: l.created_at || new Date().toISOString(),
           quotes_count: count,
@@ -197,6 +211,8 @@ export const listLeadsForReactivation = createServerFn({ method: "GET" })
           name: q.customer_name,
           phone: q.customer_phone,
           cnpj: q.customer_cnpj,
+          city: "",
+          state: "BA",
           discount_percent: 15,
           created_at: q.created_at,
           quotes_count: quoteInfo?.count ?? 1,

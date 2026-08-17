@@ -17,6 +17,8 @@ import {
   Gift,
   Tag,
   CheckCircle2,
+  Lock,
+  MapPin,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -34,6 +36,7 @@ import {
   productImage,
   PAYOT,
   BRANDS,
+  MIN_ORDER,
   WHATSAPP_NUMBER,
   REP_NAME,
   applyCatalog,
@@ -57,6 +60,7 @@ import {
   getDiscountedPrice,
   formatPhone,
   DEFAULT_DISCOUNT_PERCENT,
+  COVERAGE_NOTICE,
   type CustomerProfile,
 } from "@/lib/leads";
 import { toast } from "sonner";
@@ -110,7 +114,14 @@ function CatalogPage() {
   const [customer, setCustomer] = useState({ name: "", phone: "", cnpj: "" });
   const [customerProfile, setCustomerProfile] = useState<CustomerProfile | null>(null);
   const [welcomeOpen, setWelcomeOpen] = useState(false);
+  // Canal de entrada do modal: escolha, primeiro acesso (roleta) ou login de cliente
+  const [welcomeView, setWelcomeView] = useState<"choice" | "register" | "login">("choice");
   const save = useServerFn(submitQuote);
+
+  const openWelcome = (view: "choice" | "register" | "login" = "choice") => {
+    setWelcomeView(view);
+    setWelcomeOpen(true);
+  };
 
   useEffect(() => {
     const saved = getLocalCustomer();
@@ -122,8 +133,8 @@ function CatalogPage() {
         cnpj: formatCnpj(saved.cnpj),
       });
     } else {
-      // Abre o modal de entrada com roleta para visitantes de primeiro acesso
-      setWelcomeOpen(true);
+      // Visitante novo: abre na escolha do canal (primeiro acesso x já sou cliente)
+      openWelcome("choice");
     }
   }, []);
 
@@ -269,13 +280,20 @@ function CatalogPage() {
       toast.error("Adicione ao menos 1 produto.");
       return null;
     }
+    const total = lines.reduce((s, l) => s + l.unitPrice * l.qty, 0);
+    const min = MIN_ORDER[brand];
+    if (total < min) {
+      toast.error(`Pedido mínimo ${BRANDS[brand].name}: ${currency(min)}.`, {
+        description: `Faltam ${currency(min - total)} para fechar este pedido.`,
+      });
+      return null;
+    }
     const meta: QuoteMeta = {
       title: `Pedido — ${BRANDS[brand].name}`,
       customerName: customer.name.trim(),
       customerPhone: customer.phone,
       customerCnpj: customer.cnpj,
     };
-    const total = lines.reduce((s, l) => s + l.unitPrice * l.qty, 0);
     return {
       lines,
       items: collectItems(brand),
@@ -354,16 +372,17 @@ function CatalogPage() {
         activeBrand={activeBrand}
         setActiveBrand={setActiveBrand}
         customerProfile={customerProfile}
-        onOpenWelcome={() => setWelcomeOpen(true)}
+        onOpenWelcome={openWelcome}
         discountPercent={discountPercent}
       />
 
-      {activeBrand === null ? (
+      {/* Catálogo das marcas só abre para quem está identificado (cadastro ou login) */}
+      {activeBrand === null || !customerProfile ? (
         <LandingView
           setActiveBrand={setActiveBrand}
           totals={totals}
           customerProfile={customerProfile}
-          onOpenWelcome={() => setWelcomeOpen(true)}
+          onOpenWelcome={openWelcome}
           discountPercent={discountPercent}
         />
       ) : (
@@ -398,6 +417,7 @@ function CatalogPage() {
         onOpenChange={setWelcomeOpen}
         onCustomerReady={handleCustomerReady}
         currentCustomer={customerProfile}
+        initialView={welcomeView}
       />
     </div>
   );
@@ -427,7 +447,7 @@ function SiteHeader({
   activeBrand: BrandId | null;
   setActiveBrand: (b: BrandId | null) => void;
   customerProfile: CustomerProfile | null;
-  onOpenWelcome: () => void;
+  onOpenWelcome: (view?: "choice" | "register" | "login") => void;
   discountPercent: number;
 }) {
   return (
@@ -452,7 +472,7 @@ function SiteHeader({
             <Button
               variant="outline"
               size="sm"
-              onClick={onOpenWelcome}
+              onClick={() => onOpenWelcome("choice")}
               className="gap-1.5 border-primary/30 bg-primary/5 text-xs hover:bg-primary/10 font-semibold text-foreground"
             >
               <Gift className="size-3.5 text-primary" />
@@ -464,14 +484,27 @@ function SiteHeader({
               </span>
             </Button>
           ) : (
-            <Button
-              size="sm"
-              onClick={onOpenWelcome}
-              className="gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold shadow-sm"
-            >
-              <Gift className="size-3.5" />
-              <span className="hidden sm:inline">Roleta da</span> Sorte
-            </Button>
+            <>
+              {/* Canal 1: primeiro acesso (roleta) */}
+              <Button
+                size="sm"
+                onClick={() => onOpenWelcome("register")}
+                className="gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold shadow-sm"
+              >
+                <Gift className="size-3.5" />
+                <span className="hidden sm:inline">Roleta da</span> Sorte
+              </Button>
+
+              {/* Canal 2: cliente que já tem cadastro */}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onOpenWelcome("login")}
+                className="hidden gap-1.5 text-xs font-semibold text-muted-foreground hover:text-primary sm:inline-flex"
+              >
+                <Lock className="size-3.5" /> Já sou cliente
+              </Button>
+            </>
           )}
 
           {activeBrand && (
@@ -648,7 +681,7 @@ function LandingView({
     payot: { count: number; total: number; original?: number; items: number };
   };
   customerProfile: CustomerProfile | null;
-  onOpenWelcome: () => void;
+  onOpenWelcome: (view?: "choice" | "register" | "login") => void;
   discountPercent: number;
 }) {
   return (
@@ -658,6 +691,9 @@ function LandingView({
           <div className="flex flex-wrap items-center gap-2">
             <span className="inline-flex items-center rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
               Catálogo oficial
+            </span>
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1 text-xs font-medium text-muted-foreground">
+              <MapPin className="size-3.5 text-primary" /> Atendemos somente a Bahia (BA)
             </span>
             {customerProfile && (
               <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-bold text-primary">
@@ -689,10 +725,18 @@ function LandingView({
             <div className="mt-6 flex flex-wrap items-center gap-3">
               <Button
                 size="lg"
-                onClick={onOpenWelcome}
+                onClick={() => onOpenWelcome("register")}
                 className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-bold shadow-md"
               >
-                <Gift className="size-5" /> Girar Roleta da Sorte
+                <Gift className="size-5" /> Primeiro acesso · Girar Roleta
+              </Button>
+              <Button
+                size="lg"
+                variant="outline"
+                onClick={() => onOpenWelcome("login")}
+                className="gap-2 font-semibold"
+              >
+                <Lock className="size-4" /> Já sou cliente
               </Button>
             </div>
           )}
@@ -705,10 +749,12 @@ function LandingView({
             const brand = BRANDS[b];
             const count = b === "belliz" ? BELLIZ.length : PAYOT.length;
             const t = totals[b];
+            const locked = !customerProfile;
             return (
               <button
                 key={b}
-                onClick={() => setActiveBrand(b)}
+                // Sem cadastro/login o clique não abre a marca: chama o portal de acesso
+                onClick={() => (locked ? onOpenWelcome("choice") : setActiveBrand(b))}
                 className={cn(
                   "group flex flex-col rounded-2xl border border-border bg-card p-8 text-left transition-all hover:-translate-y-1 hover:border-primary/60 hover:shadow-xl",
                 )}
@@ -733,8 +779,16 @@ function LandingView({
                   {brand.description}
                 </p>
                 <div className="mt-8 inline-flex items-center gap-2 text-sm font-semibold text-primary">
-                  Ver catálogo
-                  <ArrowLeft className="size-4 rotate-180 transition-transform group-hover:translate-x-1" />
+                  {locked ? (
+                    <>
+                      <Lock className="size-4" /> Entre ou cadastre-se para ver o catálogo
+                    </>
+                  ) : (
+                    <>
+                      Ver catálogo
+                      <ArrowLeft className="size-4 rotate-180 transition-transform group-hover:translate-x-1" />
+                    </>
+                  )}
                 </div>
               </button>
             );
@@ -794,6 +848,11 @@ function BrandView({
   const visible = filtered.slice(0, limit);
   const t = totals[brand];
 
+  // Pedido mínimo da indústria — sem atingir, o pedido não pode ser enviado
+  const minOrder = MIN_ORDER[brand];
+  const missing = Math.max(0, minOrder - t.total);
+  const minReached = t.count > 0 && missing === 0;
+
   return (
     <section className="mx-auto max-w-6xl px-4 py-10">
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
@@ -804,15 +863,44 @@ function BrandView({
           <h1 className="text-3xl font-bold sm:text-4xl">{info.name}</h1>
           <p className="mt-1 text-sm text-muted-foreground">{info.tagline}</p>
         </div>
-        <Button
-          size="lg"
-          className="gap-2"
-          onClick={onOpenQuote}
-          disabled={t.count === 0}
-        >
+        {/* Abre o carrinho; o envio em si fica bloqueado lá até bater o mínimo */}
+        <Button size="lg" className="gap-2" onClick={onOpenQuote} disabled={t.count === 0}>
           <MessageCircle className="size-4" />
-          Enviar pedido {t.count > 0 && `(${currency(t.total)})`}
+          {t.count > 0 && !minReached
+            ? `Ver pedido · faltam ${currency(missing)}`
+            : `Enviar pedido ${t.count > 0 ? `(${currency(t.total)})` : ""}`}
         </Button>
+      </div>
+
+      {/* Aviso de pedido mínimo da marca */}
+      <div
+        className={cn(
+          "mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border p-4",
+          minReached
+            ? "border-primary/40 bg-primary/5"
+            : t.count > 0
+              ? "border-amber-500/50 bg-amber-500/5"
+              : "border-border bg-muted/40",
+        )}
+      >
+        <div>
+          <p className="text-sm font-bold text-foreground">
+            Pedido mínimo {info.name}: {currency(minOrder)}
+          </p>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Valor exigido pela indústria por pedido. Cada marca é fechada separadamente.
+          </p>
+        </div>
+        {t.count > 0 &&
+          (minReached ? (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-primary px-3 py-1 text-xs font-bold text-primary-foreground">
+              <CheckCircle2 className="size-3.5" /> Mínimo atingido · {currency(t.total)}
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/15 px-3 py-1 text-xs font-bold text-amber-700">
+              Faltam {currency(missing)} · atual {currency(t.total)}
+            </span>
+          ))}
       </div>
 
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-primary/30 bg-primary/5 p-5">
@@ -1103,6 +1191,9 @@ function QuoteDrawer({
   const info = BRANDS[brand];
   const t = totals[brand];
   const entries = Object.entries(cart[brand]);
+  const minOrder = MIN_ORDER[brand];
+  const missing = Math.max(0, minOrder - t.total);
+  const minReached = entries.length > 0 && missing === 0;
 
   return (
     <Sheet open={!!brand} onOpenChange={(o) => !o && onClose()}>
@@ -1256,8 +1347,24 @@ function QuoteDrawer({
                   <span>Total do pedido</span>
                   <span className="text-primary">{currency(t.total)}</span>
                 </div>
+                <div className="mt-1 flex justify-between text-[11px] text-muted-foreground">
+                  <span>Pedido mínimo {info.name}</span>
+                  <span>{currency(minOrder)}</span>
+                </div>
                 <p className="mt-1 text-[11px] font-normal text-muted-foreground">
                   Entrega CIF · valores sem impostos.
+                </p>
+              </div>
+            )}
+
+            {entries.length > 0 && !minReached && (
+              <div className="rounded-lg border border-amber-500/50 bg-amber-500/5 p-3 text-xs">
+                <p className="font-bold text-amber-700">
+                  Faltam {currency(missing)} para o pedido mínimo
+                </p>
+                <p className="mt-0.5 text-muted-foreground">
+                  A {info.name} só fecha pedidos a partir de {currency(minOrder)}. Adicione
+                  mais itens para liberar o envio.
                 </p>
               </div>
             )}
@@ -1311,7 +1418,7 @@ function QuoteDrawer({
               <Button
                 className="flex-1 gap-2"
                 onClick={() => onSend(brand)}
-                disabled={entries.length === 0}
+                disabled={!minReached}
               >
                 <MessageCircle className="size-4" />
                 Enviar Pedido
@@ -1321,7 +1428,7 @@ function QuoteDrawer({
               variant="ghost"
               className="mt-2 w-full gap-2"
               onClick={() => onDownload(brand)}
-              disabled={entries.length === 0}
+              disabled={!minReached}
             >
               <FileDown className="size-4" /> Baixar pedido em PDF
             </Button>
@@ -1329,7 +1436,7 @@ function QuoteDrawer({
               variant="ghost"
               className="mt-1 w-full gap-2"
               onClick={() => onDownloadSheet(brand)}
-              disabled={entries.length === 0}
+              disabled={!minReached}
             >
               <FileSpreadsheet className="size-4" /> Baixar planilha do pedido (padrão {BRANDS[brand].name})
             </Button>
@@ -1363,6 +1470,11 @@ function SiteFooter() {
             WhatsApp comercial
           </a>
         </div>
+
+        <p className="mt-4 flex items-center gap-1.5 border-t border-border/60 pt-4 text-xs">
+          <MapPin className="size-3.5 shrink-0 text-primary" />
+          {COVERAGE_NOTICE} Pedidos de empresas de outros estados não são atendidos por esta representação.
+        </p>
       </div>
     </footer>
   );

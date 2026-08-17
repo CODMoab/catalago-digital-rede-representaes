@@ -46,6 +46,15 @@ export const BRANDS: Record<BrandId, { id: BrandId; name: string; tagline: strin
   },
 };
 
+/**
+ * Pedido mínimo exigido por cada indústria (em R$, já com o desconto aplicado).
+ * Como cada pedido é fechado por marca, o mínimo também é validado marca a marca.
+ */
+export const MIN_ORDER: Record<BrandId, number> = {
+  belliz: 2000,
+  payot: 1200,
+};
+
 // EDITE AQUI: seu WhatsApp em formato internacional apenas com dígitos.
 export const WHATSAPP_NUMBER = "5571981862336";
 export const REP_NAME = "Rede Representações";

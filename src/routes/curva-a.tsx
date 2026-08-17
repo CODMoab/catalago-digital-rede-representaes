@@ -19,7 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { BRANDS, REP_NAME, WHATSAPP_NUMBER, applyCatalog, productImage, type BrandId } from "@/lib/catalog";
+import { BRANDS, MIN_ORDER, REP_NAME, WHATSAPP_NUMBER, applyCatalog, productImage, type BrandId } from "@/lib/catalog";
 import { getLocalCustomer, formatPhone } from "@/lib/leads";
 import { getCatalog } from "@/lib/catalog.functions";
 import { submitQuote, type QuoteItem } from "@/lib/quotes.functions";
@@ -94,7 +94,9 @@ function CurvaAPage() {
   const [business, setBusiness] = useState<BusinessType | null>(null);
   const [focos, setFocos] = useState<FocusId[]>([]);
   const [publico, setPublico] = useState<Publico>("intermediario");
-  const [budget, setBudget] = useState("2000");
+  const [budget, setBudget] = useState(
+    String(MIN_ORDER[(marca as BrandId | undefined) ?? "belliz"]),
+  );
   const [items, setItems] = useState<SuggestedItem[] | null>(null);
   const [customer, setCustomer] = useState({ name: "", phone: "", cnpj: "" });
   const save = useServerFn(submitQuote);
@@ -111,6 +113,9 @@ function CurvaAPage() {
   }, []);
 
   const budgetNumber = Number(budget.replace(/[^\d]/g, "")) || 0;
+
+  // Pedido mínimo da marca: a verba do plano e o total do mix precisam alcançá-lo
+  const minOrder = brand ? MIN_ORDER[brand] : 0;
 
   const brandFocuses = useMemo(
     () => (brand ? FOCUSES.filter((f) => f.brand === brand) : []),
@@ -197,6 +202,12 @@ function CurvaAPage() {
     }
     if ((items ?? []).length === 0) {
       toast.error("Seu mix está vazio.");
+      return false;
+    }
+    if (brand && total < minOrder) {
+      toast.error(`Pedido mínimo ${BRANDS[brand].name}: ${currency(minOrder)}.`, {
+        description: `Faltam ${currency(minOrder - total)} — aumente as quantidades ou refaça o plano com uma verba maior.`,
+      });
       return false;
     }
     return true;
@@ -318,10 +329,15 @@ function CurvaAPage() {
             proteger sua margem e girar estoque mais rápido.
           </p>
           {brand && (
-            <p className="mt-2 text-xs text-muted-foreground">
-              Cada plano é montado por marca — sem misturar {BRANDS[brand].name} com outra
-              indústria no mesmo pedido.
-            </p>
+            <>
+              <p className="mt-2 text-xs text-muted-foreground">
+                Cada plano é montado por marca — sem misturar {BRANDS[brand].name} com outra
+                indústria no mesmo pedido.
+              </p>
+              <p className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-bold text-primary">
+                Pedido mínimo {BRANDS[brand].name}: {currency(minOrder)}
+              </p>
+            </>
           )}
         </div>
       </section>
@@ -338,11 +354,13 @@ function CurvaAPage() {
                   key={b}
                   active={false}
                   title={BRANDS[b].name}
-                  hint={BRANDS[b].tagline}
+                  hint={`${BRANDS[b].tagline} · pedido mínimo ${currency(MIN_ORDER[b])}`}
                   onClick={() => {
                     setBrand(b);
                     setStep(0);
                     setFocos([]);
+                    // A verba parte do pedido mínimo da marca escolhida
+                    setBudget(String(MIN_ORDER[b]));
                   }}
                 />
               ))}
@@ -455,31 +473,41 @@ function CurvaAPage() {
                 inputMode="numeric"
                 value={budget}
                 onChange={(e) => setBudget(e.target.value.replace(/[^\d]/g, ""))}
-                placeholder="2000"
+                placeholder={String(minOrder)}
                 className="mt-1 text-lg"
               />
+              <p className="mt-1.5 text-xs text-muted-foreground">
+                Pedido mínimo {brand ? BRANDS[brand].name : ""}:{" "}
+                <strong className="text-foreground">{currency(minOrder)}</strong>.
+              </p>
               <div className="mt-3 flex flex-wrap gap-2">
-                {[500, 1000, 2000, 5000, 10000].map((v) => (
-                  <Button
-                    key={v}
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setBudget(String(v))}
-                  >
-                    {currency(v)}
-                  </Button>
-                ))}
+                {Array.from(new Set([minOrder, 2000, 3000, 5000, 10000]))
+                  .filter((v) => v >= minOrder)
+                  .sort((a, b) => a - b)
+                  .map((v) => (
+                    <Button
+                      key={v}
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setBudget(String(v))}
+                    >
+                      {currency(v)}
+                    </Button>
+                  ))}
               </div>
             </div>
             <StepNav
               onBack={() => setStep(2)}
               onNext={generate}
               nextLabel="Montar meu plano Curva A"
-              disabled={budgetNumber < 100}
+              disabled={budgetNumber < minOrder}
             />
-            {budgetNumber < 100 && (
-              <p className="text-xs text-muted-foreground">Informe pelo menos R$ 100.</p>
+            {budgetNumber < minOrder && (
+              <p className="text-xs font-medium text-amber-700">
+                A verba precisa ser de pelo menos {currency(minOrder)} — esse é o pedido
+                mínimo da {brand ? BRANDS[brand].name : "marca"}.
+              </p>
             )}
           </StepShell>
         )}
@@ -499,6 +527,16 @@ function CurvaAPage() {
                   Entrega <strong className="text-foreground">CIF</strong> (frete incluso) ·
                   valores <strong className="text-foreground">sem impostos</strong>.
                 </p>
+                {total < minOrder ? (
+                  <p className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-amber-500/50 bg-amber-500/5 px-3 py-1.5 text-xs font-bold text-amber-700">
+                    Faltam {currency(minOrder - total)} para o pedido mínimo de{" "}
+                    {currency(minOrder)}
+                  </p>
+                ) : (
+                  <p className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-bold text-primary">
+                    <Check className="size-3.5" /> Pedido mínimo de {currency(minOrder)} atingido
+                  </p>
+                )}
               </div>
 
               <div className="flex gap-2">
@@ -648,7 +686,23 @@ function CurvaAPage() {
                   />
                 </div>
               </div>
-              <Button className="mt-4 w-full gap-2" size="lg" onClick={send}>
+              {total < minOrder && (
+                <p className="mt-4 rounded-lg border border-amber-500/50 bg-amber-500/5 p-3 text-xs">
+                  <strong className="text-amber-700">
+                    Faltam {currency(minOrder - total)} para o pedido mínimo.
+                  </strong>{" "}
+                  <span className="text-muted-foreground">
+                    A {brand ? BRANDS[brand].name : "marca"} só fecha pedidos a partir de{" "}
+                    {currency(minOrder)} — aumente as quantidades acima para liberar o envio.
+                  </span>
+                </p>
+              )}
+              <Button
+                className="mt-4 w-full gap-2"
+                size="lg"
+                onClick={send}
+                disabled={total < minOrder}
+              >
                 <MessageCircle className="size-4" /> Enviar PDF no WhatsApp ·{" "}
                 {currency(total)}
               </Button>
@@ -656,6 +710,7 @@ function CurvaAPage() {
                 variant="outline"
                 className="mt-2 w-full gap-2"
                 onClick={download}
+                disabled={total < minOrder}
               >
                 <FileDown className="size-4" /> Baixar orçamento em PDF
               </Button>
@@ -663,6 +718,7 @@ function CurvaAPage() {
                 variant="ghost"
                 className="mt-1 w-full gap-2"
                 onClick={downloadSheet}
+                disabled={total < minOrder}
               >
                 <FileSpreadsheet className="size-4" /> Baixar planilha do pedido
               </Button>

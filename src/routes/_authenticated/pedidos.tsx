@@ -31,6 +31,7 @@ import { checkAdmin } from "@/lib/catalog.functions";
 import { listQuotes, setQuoteStatus, type QuoteRecord } from "@/lib/quotes.functions";
 import { listLeadsForReactivation, type ReactivationLead } from "@/lib/leads.functions";
 import { buildOrderSheet, downloadBlob, orderSheetFileName } from "@/lib/order-sheet";
+import { buildLeadsSheet, leadsSheetFileName } from "@/lib/leads-sheet";
 import { formatCnpj, formatPhone, onlyDigits } from "@/lib/leads";
 import { cn } from "@/lib/utils";
 
@@ -430,6 +431,23 @@ function QuotesAndLeadsPage() {
                   </Button>
                 </div>
               </div>
+
+              {/* Exporta a base de leads (respeita a busca e o filtro ativos) */}
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2 text-xs font-semibold"
+                disabled={filteredLeads.length === 0}
+                onClick={() => {
+                  downloadBlob(buildLeadsSheet(filteredLeads), leadsSheetFileName());
+                  toast.success(
+                    `Planilha com ${filteredLeads.length} lead(s) baixada.`,
+                  );
+                }}
+              >
+                <FileSpreadsheet className="size-4" /> Baixar planilha de leads (
+                {filteredLeads.length})
+              </Button>
             </div>
 
             {/* Lista de Clientes para Reativação */}
@@ -644,6 +662,14 @@ function ReactivationCard({ lead }: { lead: ReactivationLead }) {
           <p className="text-xs text-muted-foreground">
             CNPJ: <strong className="font-mono text-foreground">{formatCnpj(lead.cnpj)}</strong> · WhatsApp:{" "}
             <strong className="text-foreground">{formatPhone(lead.phone)}</strong>
+            {lead.city && (
+              <>
+                {" · "}
+                <strong className="text-foreground">
+                  {lead.city}/{lead.state || "BA"}
+                </strong>
+              </>
+            )}
           </p>
 
           {lead.has_ordered && (

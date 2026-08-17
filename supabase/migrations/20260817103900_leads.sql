@@ -13,13 +13,9 @@ CREATE INDEX IF NOT EXISTS leads_cnpj_idx ON public.leads (cnpj);
 CREATE INDEX IF NOT EXISTS leads_phone_idx ON public.leads (phone);
 CREATE INDEX IF NOT EXISTS leads_created_at_idx ON public.leads (created_at DESC);
 
-GRANT SELECT, INSERT, UPDATE ON public.leads TO authenticated, anon;
+-- A base de leads (nome, CNPJ, telefone) só é lida/gravada pelo servidor,
+-- que usa a service_role. Nada de acesso pela chave pública do navegador.
 GRANT ALL ON public.leads TO service_role;
 
 ALTER TABLE public.leads ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Allow public insert and read leads" ON public.leads
-  FOR ALL
-  TO public
-  USING (true)
-  WITH CHECK (true);
+-- Sem policy para anon/authenticated: RLS bloqueia tudo que não for service_role.
