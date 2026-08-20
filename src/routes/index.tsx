@@ -484,27 +484,15 @@ function SiteHeader({
               </span>
             </Button>
           ) : (
-            <>
-              {/* Canal 1: primeiro acesso (roleta) */}
-              <Button
-                size="sm"
-                onClick={() => onOpenWelcome("register")}
-                className="gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold shadow-sm"
-              >
-                <Gift className="size-3.5" />
-                <span className="hidden sm:inline">Roleta da</span> Sorte
-              </Button>
-
-              {/* Canal 2: cliente que já tem cadastro */}
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => onOpenWelcome("login")}
-                className="hidden gap-1.5 text-xs font-semibold text-muted-foreground hover:text-primary sm:inline-flex"
-              >
-                <Lock className="size-3.5" /> Já sou cliente
-              </Button>
-            </>
+            /* Topo fica só com o login; o primeiro acesso mora no botão da home */
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onOpenWelcome("login")}
+              className="gap-1.5 text-xs font-semibold"
+            >
+              <Lock className="size-3.5" /> Já sou cliente
+            </Button>
           )}
 
           {activeBrand && (
