@@ -181,6 +181,12 @@ function AdminPage() {
             <ArrowLeft className="h-4 w-4" /> Voltar ao catálogo
           </Link>
           <h1 className="mt-1 text-2xl font-bold">Base viva de preços</h1>
+          <Link
+            to="/pedidos"
+            className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
+          >
+            Ir para o painel de pedidos e clientes →
+          </Link>
         </div>
         <Button
           variant="outline"

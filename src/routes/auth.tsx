@@ -41,18 +41,18 @@ function AuthPage() {
       if (mode === "login") {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        navigate({ to: "/admin" });
+        navigate({ to: "/pedidos" });
       } else {
         const { data, error } = await supabase.auth.signUp({
           email,
           password,
-          options: { emailRedirectTo: `${window.location.origin}/admin` },
+          options: { emailRedirectTo: `${window.location.origin}/pedidos` },
         });
         if (error) throw error;
         if (!data.session) {
           toast.success("Conta criada. Confirme o e-mail para entrar.");
         } else {
-          navigate({ to: "/admin" });
+          navigate({ to: "/pedidos" });
         }
       }
     } catch (err) {

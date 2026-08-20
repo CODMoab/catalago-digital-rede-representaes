@@ -1460,15 +1460,24 @@ function SiteFooter() {
           <p>
             © {new Date().getFullYear()} {REP_NAME}. Belliz & Payot.
           </p>
-          <a
-            href={`https://wa.me/${WHATSAPP_NUMBER}`}
-            target="_blank"
-            rel="noopener"
-            className="inline-flex items-center gap-2 font-medium text-foreground hover:text-primary"
-          >
-            <MessageCircle className="size-4" />
-            WhatsApp comercial
-          </a>
+          <div className="flex items-center gap-4">
+            <a
+              href={`https://wa.me/${WHATSAPP_NUMBER}`}
+              target="_blank"
+              rel="noopener"
+              className="inline-flex items-center gap-2 font-medium text-foreground hover:text-primary"
+            >
+              <MessageCircle className="size-4" />
+              WhatsApp comercial
+            </a>
+            {/* Entrada discreta do painel interno (pede login) */}
+            <Link
+              to="/pedidos"
+              className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary"
+            >
+              <Lock className="size-3.5" /> Área do representante
+            </Link>
+          </div>
         </div>
 
         <p className="mt-4 flex items-center gap-1.5 border-t border-border/60 pt-4 text-xs">
