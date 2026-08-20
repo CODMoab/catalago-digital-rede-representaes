@@ -102,3 +102,77 @@ export const setQuoteStatus = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true };
   });
+
+/* ---------------- Pedido lançado pelo painel (WhatsApp, foto, e-mail…) ---------------- */
+
+/** Canais por onde o pedido chegou fora do catálogo. */
+export const MANUAL_SOURCES = {
+  whatsapp: "WhatsApp",
+  foto: "Foto / Print",
+  email: "E-mail",
+  telefone: "Telefone",
+  presencial: "Visita presencial",
+} as const;
+
+export type ManualSource = keyof typeof MANUAL_SOURCES;
+
+/** Rótulo de origem para qualquer pedido, do catálogo ou lançado à mão. */
+export function sourceLabel(source: string): string {
+  if (source === "curva-a") return "Curva A";
+  if (source === "catalogo") return "Catálogo Oficial";
+  return MANUAL_SOURCES[source as ManualSource] ?? source;
+}
+
+const manualQuoteSchema = z.object({
+  brand_id: z.enum(["belliz", "payot"]),
+  source: z.enum(["whatsapp", "foto", "email", "telefone", "presencial"]),
+  customer_name: z.string().min(2).max(120),
+  customer_phone: z.string().min(8).max(30),
+  customer_cnpj: z.string().min(14).max(20),
+  items: z.array(itemSchema).min(1).max(500),
+  status: z.enum(["novo", "enviado", "faturado", "cancelado"]).default("novo"),
+});
+
+async function assertQuoteAdmin(context: { supabase: any; userId: string }) {
+  const { data } = await context.supabase.rpc("has_role", {
+    _user_id: context.userId,
+    _role: "admin",
+  });
+  if (!data) throw new Error("Acesso restrito ao administrador.");
+}
+
+/**
+ * Registra no painel um pedido que chegou por fora do catálogo, mantendo o
+ * mesmo formato dos demais — assim ele sai na planilha padrão da indústria e
+ * fica rastreável pelo CNPJ e pela data.
+ */
+export const createManualQuote = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: unknown) => manualQuoteSchema.parse(data))
+  .handler(async ({ data, context }) => {
+    await assertQuoteAdmin(context as never);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    const units = data.items.reduce((s, i) => s + i.qty, 0);
+    const total =
+      Math.round(data.items.reduce((s, i) => s + i.qty * i.unitPrice, 0) * 100) / 100;
+
+    const { data: row, error } = await supabaseAdmin
+      .from("quotes")
+      .insert({
+        brand_id: data.brand_id,
+        source: data.source,
+        customer_name: data.customer_name,
+        customer_phone: data.customer_phone,
+        customer_cnpj: data.customer_cnpj,
+        items: data.items,
+        items_count: data.items.length,
+        units_count: units,
+        total,
+        status: data.status,
+      })
+      .select("id, created_at")
+      .single();
+    if (error) throw new Error(error.message);
+    return row;
+  });

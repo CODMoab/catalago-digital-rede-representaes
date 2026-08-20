@@ -19,6 +19,7 @@ import {
   ChevronDown,
   ChevronUp,
   Filter,
+  Plus,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -28,7 +29,15 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { BRANDS, type BrandId } from "@/lib/catalog";
 import { checkAdmin } from "@/lib/catalog.functions";
-import { listQuotes, setQuoteStatus, type QuoteRecord } from "@/lib/quotes.functions";
+import {
+  listQuotes,
+  setQuoteStatus,
+  sourceLabel,
+  type QuoteRecord,
+} from "@/lib/quotes.functions";
+import { ManualOrderDialog } from "@/components/ManualOrderDialog";
+import { getCatalog } from "@/lib/catalog.functions";
+import { applyCatalog } from "@/lib/catalog";
 import { listLeadsForReactivation, type ReactivationLead } from "@/lib/leads.functions";
 import { buildOrderSheet, downloadBlob, orderSheetFileName } from "@/lib/order-sheet";
 import { buildLeadsSheet, leadsSheetFileName } from "@/lib/leads-sheet";
@@ -36,6 +45,11 @@ import { formatCnpj, formatPhone, onlyDigits } from "@/lib/leads";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/pedidos")({
+  loader: async () => {
+    const { rows } = await getCatalog();
+    applyCatalog(rows);
+    return null;
+  },
   head: () => ({
     meta: [
       { title: "Gestão de Pedidos & Clientes — Rede Representações" },
@@ -79,6 +93,7 @@ function QuotesAndLeadsPage() {
   const [leadStatusFilter, setLeadStatusFilter] = useState<"todos" | "sem_pedido" | "com_pedido">("todos");
 
   const [loading, setLoading] = useState(false);
+  const [manualOpen, setManualOpen] = useState(false);
 
   const loadData = async () => {
     setLoading(true);
@@ -305,8 +320,18 @@ function QuotesAndLeadsPage() {
                 </select>
               </div>
 
-              <div className="text-right text-xs text-muted-foreground">
-                <strong>{filteredQuotes.length}</strong> orçamentos encontrados
+              <div className="flex items-center gap-3">
+                <span className="text-right text-xs text-muted-foreground">
+                  <strong>{filteredQuotes.length}</strong> orçamentos encontrados
+                </span>
+                {/* Lança pedido que chegou por WhatsApp, foto ou e-mail */}
+                <Button
+                  size="sm"
+                  className="gap-1.5 text-xs font-bold"
+                  onClick={() => setManualOpen(true)}
+                >
+                  <Plus className="size-4" /> Lançar pedido recebido
+                </Button>
               </div>
             </div>
 
@@ -465,6 +490,12 @@ function QuotesAndLeadsPage() {
           </TabsContent>
         </Tabs>
       </div>
+
+      <ManualOrderDialog
+        open={manualOpen}
+        onOpenChange={setManualOpen}
+        onCreated={() => void loadData()}
+      />
     </main>
   );
 }
@@ -517,7 +548,7 @@ function QuoteCard({
               {brandName}
             </span>
             <span className="rounded bg-secondary px-2 py-0.5 text-[10px] font-medium text-secondary-foreground">
-              {quote.source === "curva-a" ? "Curva A" : "Catálogo Oficial"}
+              {sourceLabel(quote.source)}
             </span>
             <span className="text-xs text-muted-foreground">
               {new Date(quote.created_at).toLocaleString("pt-BR")}
