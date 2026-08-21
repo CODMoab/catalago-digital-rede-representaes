@@ -21,10 +21,22 @@ const slug = (v: string) =>
     .replace(/^-|-$/g, "")
     .slice(0, 40) || "cliente";
 
+/**
+ * Padrao de arquivo: Marca_Orcamento_AAAA-MM_Cliente_CNPJ.xlsx
+ * Cliente e CNPJ sao opcionais — nem sempre chegam junto com o pedido.
+ */
 export function orderSheetFileName(meta: OrderSheetMeta) {
   const d = meta.createdAt ? new Date(meta.createdAt) : new Date();
-  const date = `${String(d.getDate()).padStart(2, "0")}-${String(d.getMonth() + 1).padStart(2, "0")}-${d.getFullYear()}`;
-  return `Pedido-${meta.brandName}-${slug(meta.customerName)}-${date}.xlsx`;
+  const mes = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  const cnpj = (meta.customerCnpj || "").replace(/\D/g, "");
+  const partes = [
+    slug(meta.brandName),
+    "Orcamento",
+    mes,
+    meta.customerName?.trim() ? slug(meta.customerName) : null,
+    cnpj || null,
+  ].filter(Boolean);
+  return `${partes.join("_")}.xlsx`;
 }
 
 /**
@@ -34,6 +46,8 @@ export function orderSheetFileName(meta: OrderSheetMeta) {
  */
 export function buildOrderSheet(items: QuoteItem[], meta: OrderSheetMeta): Blob {
   const isBelliz = meta.brandId === "belliz";
+  // Itens que a leitura automatica nao conseguiu confirmar ganham uma coluna de alerta
+  const hasReview = items.some((i) => i.review);
   const created = meta.createdAt ? new Date(meta.createdAt) : new Date();
 
   const header: (string | number)[][] = [
@@ -45,13 +59,15 @@ export function buildOrderSheet(items: QuoteItem[], meta: OrderSheetMeta): Blob 
     [],
   ];
 
-  const cols = isBelliz
+  const baseCols = isBelliz
     ? ["CÓDIGO", "DESCRIÇÃO", "MARCA", "EAN-13", "COLETIVO", "QTDE COLETIVOS", "QTDE UNIDADES", "PREÇO LÍQUIDO UN.", "TOTAL"]
     : ["CÓDIGO", "DESCRIÇÃO", "LINHA", "EAN-13", "QTDE", "PREÇO", "TOTAL"];
+  const cols = hasReview ? [...baseCols, "CONFERIR"] : baseCols;
 
   const body = items.map((i) => {
     const total = round2(i.qty * i.unitPrice);
-    return isBelliz
+    const alerta = i.review ? `⚠ ${i.reviewNote || "conferir com o cliente"}` : "";
+    const linha = isBelliz
       ? [
           i.code,
           i.name,
@@ -64,19 +80,28 @@ export function buildOrderSheet(items: QuoteItem[], meta: OrderSheetMeta): Blob 
           total,
         ]
       : [i.code, i.name, i.line ?? "", i.ean ?? "", i.qty, round2(i.unitPrice), total];
+    return hasReview ? [...linha, alerta] : linha;
   });
 
   const totalGeral = round2(items.reduce((s, i) => s + i.qty * i.unitPrice, 0));
   const totalUnits = items.reduce((s, i) => s + i.qty, 0);
-  const totalRow: (string | number)[] = isBelliz
+  const baseTotalRow: (string | number)[] = isBelliz
     ? ["", "TOTAL DO PEDIDO", "", "", "", "", totalUnits, "", totalGeral]
     : ["", "TOTAL DO PEDIDO", "", "", totalUnits, "", totalGeral];
+  const totalRow = hasReview ? [...baseTotalRow, ""] : baseTotalRow;
 
-  const aoa = [...header, cols, ...body, [], totalRow, [], ["Entrega CIF · valores sem impostos"]];
+  const rodape: (string | number)[][] = [[], ["Entrega CIF · valores sem impostos"]];
+  if (hasReview) {
+    rodape.push([
+      "ATENÇÃO: itens marcados na coluna CONFERIR foram lidos automaticamente e precisam de conferência antes do envio à indústria.",
+    ]);
+  }
+  const aoa = [...header, cols, ...body, [], totalRow, ...rodape];
   const ws = XLSX.utils.aoa_to_sheet(aoa);
-  ws["!cols"] = isBelliz
+  const baseWidths = isBelliz
     ? [{ wch: 12 }, { wch: 46 }, { wch: 16 }, { wch: 16 }, { wch: 10 }, { wch: 16 }, { wch: 14 }, { wch: 18 }, { wch: 14 }]
     : [{ wch: 12 }, { wch: 46 }, { wch: 20 }, { wch: 16 }, { wch: 10 }, { wch: 12 }, { wch: 14 }];
+  ws["!cols"] = hasReview ? [...baseWidths, { wch: 34 }] : baseWidths;
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Pedido");

@@ -20,6 +20,8 @@ import {
   ChevronUp,
   Filter,
   Plus,
+  Sparkles,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -32,10 +34,12 @@ import { checkAdmin } from "@/lib/catalog.functions";
 import {
   listQuotes,
   setQuoteStatus,
+  deleteQuote,
   sourceLabel,
   type QuoteRecord,
 } from "@/lib/quotes.functions";
 import { ManualOrderDialog } from "@/components/ManualOrderDialog";
+import { ImportOrderDialog } from "@/components/ImportOrderDialog";
 import { getCatalog } from "@/lib/catalog.functions";
 import { applyCatalog } from "@/lib/catalog";
 import { listLeadsForReactivation, type ReactivationLead } from "@/lib/leads.functions";
@@ -94,6 +98,21 @@ function QuotesAndLeadsPage() {
 
   const [loading, setLoading] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const deleteQuoteFn = useServerFn(deleteQuote);
+
+  const removeQuote = async (q: QuoteRecord) => {
+    const quem = q.customer_name?.trim() || "sem cliente";
+    if (!window.confirm(`Excluir este orçamento de ${quem}? A ação não pode ser desfeita.`))
+      return;
+    try {
+      await deleteQuoteFn({ data: { id: q.id } });
+      setQuotes((prev) => prev.filter((x) => x.id !== q.id));
+      toast.success("Orçamento excluído.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Não foi possível excluir.");
+    }
+  };
 
   const loadData = async () => {
     setLoading(true);
@@ -327,10 +346,18 @@ function QuotesAndLeadsPage() {
                 {/* Lança pedido que chegou por WhatsApp, foto ou e-mail */}
                 <Button
                   size="sm"
+                  variant="outline"
                   className="gap-1.5 text-xs font-bold"
                   onClick={() => setManualOpen(true)}
                 >
-                  <Plus className="size-4" /> Lançar pedido recebido
+                  <Plus className="size-4" /> Lançar à mão
+                </Button>
+                <Button
+                  size="sm"
+                  className="gap-1.5 text-xs font-bold"
+                  onClick={() => setImportOpen(true)}
+                >
+                  <Sparkles className="size-4" /> Importar com IA
                 </Button>
               </div>
             </div>
@@ -339,6 +366,7 @@ function QuotesAndLeadsPage() {
             <div className="space-y-3">
               {filteredQuotes.map((q) => (
                 <QuoteCard
+                  onDelete={() => removeQuote(q)}
                   key={q.id}
                   quote={q}
                   onStatus={async (status) => {
@@ -496,6 +524,12 @@ function QuotesAndLeadsPage() {
         onOpenChange={setManualOpen}
         onCreated={() => void loadData()}
       />
+
+      <ImportOrderDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        onCreated={() => void loadData()}
+      />
     </main>
   );
 }
@@ -505,9 +539,11 @@ function QuotesAndLeadsPage() {
 function QuoteCard({
   quote,
   onStatus,
+  onDelete,
 }: {
   quote: QuoteRecord;
   onStatus: (status: (typeof STATUS)[number]) => Promise<void>;
+  onDelete: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const brand = quote.brand_id as BrandId;
@@ -584,6 +620,17 @@ function QuoteCard({
           {/* Botão de Download de Planilha Padrão da Marca */}
           <Button size="sm" onClick={download} className="gap-1.5">
             <FileSpreadsheet className="size-4" /> Planilha {brandName}
+          </Button>
+
+          {/* Orçamento não é pedido fechado: pode ser descartado */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onDelete}
+            title="Excluir orçamento"
+            className="size-9 text-muted-foreground hover:text-destructive"
+          >
+            <Trash2 className="size-4" />
           </Button>
 
           {/* Abertura do WhatsApp do Cliente */}

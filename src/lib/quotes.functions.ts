@@ -8,13 +8,20 @@ const itemSchema = z.object({
   name: z.string().min(1),
   line: z.string().default(""),
   ean: z.string().default(""),
-  pack: z.number().int().positive().default(1),
+  pack: z.number().int().positive(),
   qty: z.number().int().positive(),
   unitPrice: z.number().nonnegative(),
   curva: z.enum(["A", "B", "C"]).nullable().default(null),
+  /** Item lido automaticamente que precisa de conferência humana. */
+  review: z.boolean().default(false),
+  reviewNote: z.string().default(""),
 });
 
-export type QuoteItem = z.infer<typeof itemSchema>;
+/**
+ * Tipo de entrada: campos com valor padrão (review, reviewNote, line…) são
+ * opcionais para quem monta o item; o servidor preenche ao validar.
+ */
+export type QuoteItem = z.input<typeof itemSchema>;
 
 const submitSchema = z.object({
   brand_id: z.enum(["belliz", "payot"]),
@@ -126,9 +133,9 @@ export function sourceLabel(source: string): string {
 const manualQuoteSchema = z.object({
   brand_id: z.enum(["belliz", "payot"]),
   source: z.enum(["whatsapp", "foto", "email", "telefone", "presencial"]),
-  customer_name: z.string().min(2).max(120),
-  customer_phone: z.string().min(8).max(30),
-  customer_cnpj: z.string().min(14).max(20),
+  customer_name: z.string().max(120).default(""),
+  customer_phone: z.string().max(30).default(""),
+  customer_cnpj: z.string().max(20).default(""),
   items: z.array(itemSchema).min(1).max(500),
   status: z.enum(["novo", "enviado", "faturado", "cancelado"]).default("novo"),
 });
@@ -175,4 +182,16 @@ export const createManualQuote = createServerFn({ method: "POST" })
       .single();
     if (error) throw new Error(error.message);
     return row;
+  });
+
+/** Apaga um orçamento (somente admin). Orçamento não é pedido fechado — some da lista. */
+export const deleteQuote = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: unknown) => z.object({ id: z.string().uuid() }).parse(data))
+  .handler(async ({ data, context }) => {
+    await assertQuoteAdmin(context as never);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error } = await supabaseAdmin.from("quotes").delete().eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true };
   });
