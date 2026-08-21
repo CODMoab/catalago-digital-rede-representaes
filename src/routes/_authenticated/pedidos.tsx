@@ -22,6 +22,7 @@ import {
   Plus,
   Sparkles,
   Trash2,
+  IdCard,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -40,6 +41,8 @@ import {
 } from "@/lib/quotes.functions";
 import { ManualOrderDialog } from "@/components/ManualOrderDialog";
 import { ImportOrderDialog } from "@/components/ImportOrderDialog";
+import { CustomerProfileDialog } from "@/components/CustomerProfileDialog";
+import { customerKey, quoteKey } from "@/lib/customer-profile";
 import { getCatalog } from "@/lib/catalog.functions";
 import { applyCatalog } from "@/lib/catalog";
 import { listLeadsForReactivation, type ReactivationLead } from "@/lib/leads.functions";
@@ -99,6 +102,8 @@ function QuotesAndLeadsPage() {
   const [loading, setLoading] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  // Ficha do cliente: guarda a chave (CNPJ ou telefone) de quem está aberto
+  const [profileKey, setProfileKey] = useState<string | null>(null);
   const deleteQuoteFn = useServerFn(deleteQuote);
 
   const removeQuote = async (q: QuoteRecord) => {
@@ -367,6 +372,7 @@ function QuotesAndLeadsPage() {
               {filteredQuotes.map((q) => (
                 <QuoteCard
                   onDelete={() => removeQuote(q)}
+                  onOpenProfile={() => setProfileKey(quoteKey(q))}
                   key={q.id}
                   quote={q}
                   onStatus={async (status) => {
@@ -506,7 +512,11 @@ function QuotesAndLeadsPage() {
             {/* Lista de Clientes para Reativação */}
             <div className="space-y-3">
               {filteredLeads.map((lead) => (
-                <ReactivationCard key={lead.id} lead={lead} />
+                <ReactivationCard
+                  key={lead.id}
+                  lead={lead}
+                  onOpenProfile={() => setProfileKey(customerKey(lead))}
+                />
               ))}
 
               {!loading && filteredLeads.length === 0 && (
@@ -530,6 +540,13 @@ function QuotesAndLeadsPage() {
         onOpenChange={setImportOpen}
         onCreated={() => void loadData()}
       />
+
+      <CustomerProfileDialog
+        customerKey={profileKey}
+        onOpenChange={(open) => !open && setProfileKey(null)}
+        leads={leads}
+        quotes={quotes}
+      />
     </main>
   );
 }
@@ -540,10 +557,12 @@ function QuoteCard({
   quote,
   onStatus,
   onDelete,
+  onOpenProfile,
 }: {
   quote: QuoteRecord;
   onStatus: (status: (typeof STATUS)[number]) => Promise<void>;
   onDelete: () => void;
+  onOpenProfile: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const brand = quote.brand_id as BrandId;
@@ -620,6 +639,16 @@ function QuoteCard({
           {/* Botão de Download de Planilha Padrão da Marca */}
           <Button size="sm" onClick={download} className="gap-1.5">
             <FileSpreadsheet className="size-4" /> Planilha {brandName}
+          </Button>
+
+          {/* Abre a ficha consolidada do cliente */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onOpenProfile}
+            className="gap-1.5 text-xs"
+          >
+            <IdCard className="size-4" /> Ficha
           </Button>
 
           {/* Orçamento não é pedido fechado: pode ser descartado */}
@@ -699,7 +728,13 @@ function QuoteCard({
 
 /* ---------------- Card de Reativação de Cliente ---------------- */
 
-function ReactivationCard({ lead }: { lead: ReactivationLead }) {
+function ReactivationCard({
+  lead,
+  onOpenProfile,
+}: {
+  lead: ReactivationLead;
+  onOpenProfile: () => void;
+}) {
   const cleanPhone = onlyDigits(lead.phone);
   const firstName = lead.name.split(" ")[0];
 
@@ -777,6 +812,15 @@ function ReactivationCard({ lead }: { lead: ReactivationLead }) {
           ) : (
             <span className="text-xs text-muted-foreground">Telefone inválido</span>
           )}
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onOpenProfile}
+            className="gap-1.5 text-xs"
+          >
+            <IdCard className="size-4" /> Ficha
+          </Button>
 
           <Button
             variant="outline"
