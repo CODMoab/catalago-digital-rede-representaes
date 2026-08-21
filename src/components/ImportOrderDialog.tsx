@@ -9,6 +9,7 @@ import {
   Search,
   FileSpreadsheet,
   ArrowLeft,
+  Zap,
 } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -21,7 +22,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { BRANDS, type BrandId } from "@/lib/catalog";
 import { formatCnpj, formatPhone, onlyDigits } from "@/lib/leads";
-import { parseOrderDocument } from "@/lib/order-import.functions";
+import { parseOrderDocument, type ExtractedOrder } from "@/lib/order-import.functions";
+import { parseOrderText } from "@/lib/order-text-parser";
 import {
   matchExtractedOrder,
   brandFromExtraction,
@@ -64,6 +66,9 @@ export function ImportOrderDialog({
   const [source, setSource] = useState<ManualSource>("whatsapp");
   const [lines, setLines] = useState<DraftLine[]>([]);
   const [obs, setObs] = useState("");
+  const [ignoradas, setIgnoradas] = useState<string[]>([]);
+  const [avisos, setAvisos] = useState<string[]>([]);
+  const [lidoPor, setLidoPor] = useState<"local" | "ia">("local");
 
   const [name, setName] = useState("");
   const [cnpj, setCnpj] = useState("");
@@ -85,6 +90,8 @@ export function ImportOrderDialog({
     setFile(null);
     setLines([]);
     setObs("");
+    setIgnoradas([]);
+    setAvisos([]);
     setName("");
     setCnpj("");
     setPhone("");
@@ -108,6 +115,43 @@ export function ImportOrderDialog({
     setFile({ name: f.name, base64: btoa(binary), mediaType: f.type });
   };
 
+  /** Joga o pedido lido (pela IA ou pelo leitor local) na tela de conferência. */
+  const aplicar = (order: ExtractedOrder, origem: "local" | "ia") => {
+    const marca = brandFromExtraction(order) ?? brand;
+    setBrand(marca);
+    setLines(matchExtractedOrder(order, marca));
+    setObs(order.observacaoGeral ?? "");
+    if (order.cliente) setName(order.cliente);
+    if (order.cnpj) setCnpj(formatCnpj(order.cnpj));
+    if (order.telefone) setPhone(formatPhone(order.telefone));
+    setLidoPor(origem);
+    setStep("conferencia");
+  };
+
+  /** Leitura sem IA: instantânea e sem custo, para o texto do dia a dia. */
+  const lerLocal = () => {
+    if (!text.trim()) {
+      toast.error("Cole o texto do pedido para ler sem IA.");
+      return;
+    }
+    const res = parseOrderText(text);
+    setIgnoradas(res.ignoradas);
+    setAvisos(res.avisos);
+    if (res.order.itens.length === 0) {
+      toast.error("Não reconheci nenhum produto nesse texto.", {
+        description: "Tente o botão Ler com IA, que entende escrita mais solta.",
+      });
+      return;
+    }
+    aplicar(res.order, "local");
+    toast.success(`${res.order.itens.length} item(ns) reconhecidos sem gastar IA.`, {
+      description:
+        res.ignoradas.length > 0
+          ? `${res.ignoradas.length} linha(s) não foram entendidas — dá para mandar para a IA.`
+          : "Confira as linhas marcadas em amarelo antes de salvar.",
+    });
+  };
+
   const interpretar = async () => {
     if (!text.trim() && !file) {
       toast.error("Cole o texto do pedido ou envie um arquivo.");
@@ -125,14 +169,9 @@ export function ImportOrderDialog({
         toast.error(res.error ?? "Não consegui ler este pedido.");
         return;
       }
-      const marca = brandFromExtraction(res.order) ?? brand;
-      setBrand(marca);
-      setLines(matchExtractedOrder(res.order, marca));
-      setObs(res.order.observacaoGeral ?? "");
-      if (res.order.cliente) setName(res.order.cliente);
-      if (res.order.cnpj) setCnpj(formatCnpj(res.order.cnpj));
-      if (res.order.telefone) setPhone(formatPhone(res.order.telefone));
-      setStep("conferencia");
+      setIgnoradas([]);
+      setAvisos([]);
+      aplicar(res.order, "ia");
       toast.success(`${res.order.itens.length} item(ns) lido(s).`, {
         description: "Confira as linhas marcadas em amarelo antes de salvar.",
       });
@@ -239,11 +278,11 @@ export function ImportOrderDialog({
       <DialogContent className="max-h-[95vh] w-[95vw] max-w-4xl overflow-y-auto p-0">
         <div className="border-b border-border bg-muted/40 px-6 py-4">
           <h2 className="flex items-center gap-2 text-lg font-bold tracking-tight">
-            <Sparkles className="size-5 text-primary" /> Importar pedido com IA
+            <Sparkles className="size-5 text-primary" /> Importar pedido
           </h2>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            Cole o texto do WhatsApp ou envie o PDF/foto do pedido. A leitura é automática,
-            mas tudo que ficar em dúvida vem marcado para você conferir antes de salvar.
+            Texto do WhatsApp é lido na hora, sem gastar IA. Foto e PDF precisam da IA.
+            Nos dois casos, o que ficar em dúvida vem marcado para você conferir antes de salvar.
           </p>
         </div>
 
@@ -307,15 +346,31 @@ export function ImportOrderDialog({
               )}
             </div>
 
-            <Button
-              size="lg"
-              className="w-full gap-2 font-bold"
-              disabled={reading}
-              onClick={interpretar}
-            >
-              <Sparkles className={cn("size-4", reading && "animate-pulse")} />
-              {reading ? "Lendo o pedido…" : "Interpretar com IA"}
-            </Button>
+            <div className="space-y-2">
+              <Button
+                size="lg"
+                className="w-full gap-2 font-bold"
+                disabled={reading || !text.trim() || Boolean(file)}
+                onClick={lerLocal}
+              >
+                <Zap className="size-4" /> Ler o texto agora (sem gastar IA)
+              </Button>
+              <Button
+                size="lg"
+                variant="outline"
+                className="w-full gap-2 font-bold"
+                disabled={reading}
+                onClick={interpretar}
+              >
+                <Sparkles className={cn("size-4", reading && "animate-pulse")} />
+                {reading ? "Lendo o pedido…" : "Ler com IA"}
+              </Button>
+              <p className="text-center text-[11px] text-muted-foreground">
+                {file
+                  ? "Arquivo anexado: só a IA consegue ler foto e PDF."
+                  : "Comece pelo botão de cima. Se ele não entender a mensagem, use a IA."}
+              </p>
+            </div>
           </div>
         ) : (
           <div className="space-y-5 p-6">
@@ -362,7 +417,61 @@ export function ImportOrderDialog({
                   <strong>Observação lida no pedido:</strong> {obs}
                 </p>
               )}
+              <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-card px-2.5 py-1 text-[11px] font-semibold text-muted-foreground">
+                {lidoPor === "local" ? (
+                  <>
+                    <Zap className="size-3.5 text-primary" /> Lido sem IA · custo zero
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="size-3.5 text-primary" /> Lido com IA
+                  </>
+                )}
+              </p>
             </div>
+
+            {avisos.map((a) => (
+              <p
+                key={a}
+                className="flex items-start gap-2 rounded-xl border border-amber-500/50 bg-amber-500/5 p-3 text-xs font-medium text-amber-700"
+              >
+                <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+                {a}
+              </p>
+            ))}
+
+            {ignoradas.length > 0 && (
+              <div className="rounded-xl border border-border bg-muted/40 p-4">
+                <p className="text-xs font-bold">
+                  {ignoradas.length} linha(s) não foram entendidas
+                </p>
+                <ul className="mt-2 space-y-1">
+                  {ignoradas.slice(0, 6).map((l) => (
+                    <li
+                      key={l}
+                      className="truncate rounded bg-card px-2 py-1 text-[11px] italic text-muted-foreground"
+                    >
+                      "{l}"
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-2 text-[11px] text-muted-foreground">
+                  Se alguma dessas era um produto, mande o texto para a IA — ela entende
+                  escrita mais solta. Se era só conversa, pode ignorar.
+                </p>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="mt-3 gap-1.5 text-xs"
+                  disabled={reading}
+                  onClick={interpretar}
+                >
+                  <Sparkles className={cn("size-3.5", reading && "animate-pulse")} />
+                  {reading ? "Lendo…" : "Ler tudo de novo com IA"}
+                </Button>
+              </div>
+            )}
 
             {/* Marca, origem e cliente */}
             <div className="grid gap-4 sm:grid-cols-2">

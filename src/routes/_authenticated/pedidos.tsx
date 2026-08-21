@@ -362,7 +362,7 @@ function QuotesAndLeadsPage() {
                   className="gap-1.5 text-xs font-bold"
                   onClick={() => setImportOpen(true)}
                 >
-                  <Sparkles className="size-4" /> Importar com IA
+                  <Sparkles className="size-4" /> Importar pedido
                 </Button>
               </div>
             </div>

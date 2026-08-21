@@ -18,7 +18,7 @@ const DIACRITICOS = new RegExp(
   "g",
 );
 
-const norm = (v: string) =>
+export const norm = (v: string) =>
   (v ?? "")
     .normalize("NFD")
     .replace(DIACRITICOS, "")
