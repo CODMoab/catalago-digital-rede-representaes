@@ -1,6 +1,7 @@
 import * as XLSX from "xlsx";
 
 import type { QuoteItem } from "@/lib/quotes.functions";
+import { buildProvadorOrder, PROVADOR_A_CADA } from "@/lib/provador";
 
 export type OrderSheetMeta = {
   brandId: "belliz" | "payot";
@@ -105,6 +106,49 @@ export function buildOrderSheet(items: QuoteItem[], meta: OrderSheetMeta): Blob 
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Pedido");
+
+  // Payot: a bonificação é lançada como um segundo pedido na indústria,
+  // então ela sai numa aba própria, pronta para ser digitada.
+  if (!isBelliz) {
+    const provador = buildProvadorOrder(items);
+    if (provador.length > 0) {
+      const totalBonificado = provador.reduce((soma, l) => soma + l.qty, 0);
+      const aoaProv: (string | number)[][] = [
+        [`PEDIDO PROVADOR ${meta.brandName.toUpperCase()}`],
+        ["Cliente", meta.customerName],
+        ["CNPJ", meta.customerCnpj],
+        ["Data", created.toLocaleDateString("pt-BR")],
+        [`Regra: a cada ${PROVADOR_A_CADA} unidades compradas, 1 bonificada`],
+        [],
+        [
+          "CÓDIGO PROVADOR",
+          "CÓDIGO DO ITEM",
+          "DESCRIÇÃO",
+          "LINHA",
+          "QTDE COMPRADA",
+          "QTDE BONIFICADA",
+        ],
+        ...provador.map((l) => [l.code, l.originCode, l.name, l.line, l.boughtQty, l.qty]),
+        [],
+        ["", "TOTAL BONIFICADO", "", "", "", totalBonificado],
+        [],
+        ["Lançar como pedido separado no sistema da indústria."],
+        [
+          "Os códigos de provador seguem a regra 4→5 / 7→8 e não constam no catálogo de venda: confira antes de enviar.",
+        ],
+      ];
+      const wsProv = XLSX.utils.aoa_to_sheet(aoaProv);
+      wsProv["!cols"] = [
+        { wch: 18 },
+        { wch: 16 },
+        { wch: 46 },
+        { wch: 20 },
+        { wch: 16 },
+        { wch: 18 },
+      ];
+      XLSX.utils.book_append_sheet(wb, wsProv, "Provador");
+    }
+  }
   const out = XLSX.write(wb, { bookType: "xlsx", type: "array" }) as ArrayBuffer;
   return new Blob([out], {
     type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
