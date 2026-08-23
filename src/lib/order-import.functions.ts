@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { normalizaExtracao } from "@/lib/order-import-salvage";
 
 /** O que a IA devolve por item lido — ainda sem casar com o catálogo. */
 const extractedItemSchema = z.object({
@@ -50,7 +51,9 @@ Regras:
 - Quantidade escrita como "2cx", "3 displays", "1 coletivo" deve ir em quantidade com a
   unidade correspondente em unidade.
 - Campos que não aparecem no documento ficam vazios (string) ou 0 (número).
-- É melhor marcar incerto do que chutar.`;
+- É melhor marcar incerto do que chutar.
+- A lista de produtos vai SEMPRE no campo itens, um objeto por produto. Nunca
+  escreva a lista como texto dentro de outro campo.`;
 
 /** Schema estrito da extração — o modelo é obrigado a responder nesse formato. */
 const EXTRACTION_TOOL = {
@@ -61,13 +64,6 @@ const EXTRACTION_TOOL = {
     type: "object" as const,
     properties: {
       marca: { type: "string", description: "'belliz', 'payot' ou vazio" },
-      cliente: { type: "string", description: "Nome da loja/cliente ou vazio" },
-      cnpj: { type: "string", description: "CNPJ do cliente, só dígitos, ou vazio" },
-      telefone: { type: "string", description: "Telefone do cliente, só dígitos, ou vazio" },
-      observacaoGeral: {
-        type: "string",
-        description: "Condições ou recados do pedido (prazo, frete, desconto) ou vazio",
-      },
       itens: {
         type: "array",
         items: {
@@ -91,8 +87,15 @@ const EXTRACTION_TOOL = {
           additionalProperties: false,
         },
       },
+      cliente: { type: "string", description: "Nome da loja/cliente ou vazio" },
+      cnpj: { type: "string", description: "CNPJ do cliente, só dígitos, ou vazio" },
+      telefone: { type: "string", description: "Telefone do cliente, só dígitos, ou vazio" },
+      observacaoGeral: {
+        type: "string",
+        description: "Condições ou recados do pedido (prazo, frete, desconto) ou vazio",
+      },
     },
-    required: ["marca", "cliente", "cnpj", "telefone", "observacaoGeral", "itens"],
+    required: ["marca", "itens", "cliente", "cnpj", "telefone", "observacaoGeral"],
     additionalProperties: false,
   },
 };
@@ -182,13 +185,22 @@ ${data.text.trim()}`
 
       const response = await client.messages.create({
         model: "claude-opus-5",
-        max_tokens: 16000,
+        max_tokens: 32000,
         system: SYSTEM,
         thinking: { type: "adaptive" },
         messages: [{ role: "user", content }],
         tools: [EXTRACTION_TOOL],
         tool_choice: { type: "tool", name: "registrar_pedido" },
       });
+
+      if (response.stop_reason === "max_tokens") {
+        return {
+          ok: false as const,
+          error:
+            "O pedido é grande demais para uma leitura só. Divida a foto ou o texto em duas partes.",
+          order: null,
+        };
+      }
 
       if (response.stop_reason === "refusal") {
         return {
@@ -200,14 +212,25 @@ ${data.text.trim()}`
 
       const toolUse = response.content.find((b) => b.type === "tool_use");
       const parsed = toolUse
-        ? extractionSchema.safeParse((toolUse as { input: unknown }).input)
+        ? extractionSchema.safeParse(
+            normalizaExtracao((toolUse as { input: unknown }).input),
+          )
         : null;
       const order = parsed?.success ? parsed.data : null;
 
       if (!order) {
+        console.error("[order-import] Resposta fora do formato:", parsed?.error?.message);
         return {
           ok: false as const,
           error: "Não consegui interpretar este pedido. Tente colar o texto.",
+          order: null,
+        };
+      }
+
+      if (order.itens.length === 0) {
+        return {
+          ok: false as const,
+          error: "Li o documento mas não encontrei nenhum item de pedido nele.",
           order: null,
         };
       }

@@ -40,6 +40,21 @@ function tokens(v: string): string[] {
     .filter((t) => t.length > 2 && !STOP.has(t));
 }
 
+/**
+ * Número da variação (cor/tom) do produto.
+ * No pedido vem como "COR 04"; no catálogo vem no fim do nome ("... Cobertura 4").
+ * Sem isso, "Base Matte cor 04" casa com a cor 1 e ninguém percebe.
+ */
+function variante(v: string): string {
+  // norm() transforma "2,5" e "2.5" em "2 5", então a fração vira dois grupos
+  const t = norm(v).replace(/\s(payot|belliz)$/, "").trim();
+  const cor = t.match(/\bcor\s*0*(\d{1,2})(?:\s+(\d))?\b/);
+  if (cor) return cor[2] ? `${cor[1]}.${cor[2]}` : cor[1];
+  const fim = t.match(/(?:^|\s)0*(\d{1,2})(?:\s+(\d))?$/);
+  if (!fim) return "";
+  return fim[2] ? `${fim[1]}.${fim[2]}` : fim[1];
+}
+
 type CatalogEntry = {
   code: string;
   name: string;
@@ -105,6 +120,9 @@ export function matchExtractedOrder(order: ExtractedOrder, brand: BrandId): Draf
     let entry: CatalogEntry | undefined;
     let match: DraftLine["match"] = "nenhum";
 
+    const corPedida = variante(item.descricao);
+    let empatados = 0;
+
     if (item.codigo && byCode.has(norm(item.codigo))) {
       entry = byCode.get(norm(item.codigo));
       match = "codigo";
@@ -112,14 +130,35 @@ export function matchExtractedOrder(order: ExtractedOrder, brand: BrandId): Draf
       entry = byEan.get(digits(item.ean));
       match = "ean";
     } else {
+      // O código do catálogo às vezes vem escrito no meio da descrição:
+      // "GEL DE SOBRANCELHAS PAYOT COD 772101"
+      for (const n of item.descricao.match(/\d{4,6}/g) ?? []) {
+        if (byCode.has(norm(n))) {
+          entry = byCode.get(norm(n));
+          match = "codigo";
+          break;
+        }
+      }
+    }
+
+    if (!entry) {
       const qt = tokens(item.descricao);
       let melhor: CatalogEntry | undefined;
       let melhorScore = 0;
       for (const e of catalog) {
-        const s = score(qt, e);
-        if (s > melhorScore) {
+        let s = score(qt, e);
+        // A cor decide entre produtos de nome idêntico
+        if (corPedida) {
+          const corItem = variante(e.name);
+          if (corItem === corPedida) s = Math.min(1, s + 0.35);
+          else if (corItem) s *= 0.25;
+        }
+        if (s > melhorScore + 0.001) {
           melhorScore = s;
           melhor = e;
+          empatados = 1;
+        } else if (melhor && Math.abs(s - melhorScore) <= 0.001) {
+          empatados += 1;
         }
       }
       if (melhor && melhorScore >= 0.6) {
@@ -132,6 +171,16 @@ export function matchExtractedOrder(order: ExtractedOrder, brand: BrandId): Draf
     if (item.incerto && item.observacao) notas.push(item.observacao);
     if (!entry) notas.push("produto não encontrado no catálogo");
     else if (match === "nome") notas.push("produto identificado pelo nome, confirmar");
+
+    if (entry && corPedida) {
+      const corItem = variante(entry.name);
+      if (corItem !== corPedida) {
+        notas.push(`o pedido diz cor ${corPedida} e o produto escolhido é a cor ${corItem || "sem número"} — confirme`);
+      }
+    }
+    if (entry && match === "nome" && empatados > 1) {
+      notas.push(`há ${empatados} produtos com nome parecido, confirme qual é`);
+    }
 
     const pack = entry?.pack ?? 1;
     let qty = Math.max(0, Math.round(item.quantidade || 0));
