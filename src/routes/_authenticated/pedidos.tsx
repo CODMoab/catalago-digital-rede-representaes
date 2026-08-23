@@ -5,6 +5,7 @@ import {
   ArrowLeft,
   FileSpreadsheet,
   ClipboardPaste,
+  FileDown,
   LogOut,
   RefreshCw,
   Search,
@@ -49,6 +50,8 @@ import { applyCatalog } from "@/lib/catalog";
 import { listLeadsForReactivation, type ReactivationLead } from "@/lib/leads.functions";
 import { buildOrderSheet, downloadBlob, orderSheetFileName } from "@/lib/order-sheet";
 import { buildPasteSheet, pasteSheetFileName, pasteInstruction } from "@/lib/paste-sheet";
+import { buildQuotePdf, downloadPdf, quoteFileName, type QuoteLine } from "@/lib/quote-pdf";
+import { conferirPrecos, resumoChecagem } from "@/lib/conferencia-preco";
 import { buildLeadsSheet, leadsSheetFileName } from "@/lib/leads-sheet";
 import { formatCnpj, formatPhone, onlyDigits } from "@/lib/leads";
 import { cn } from "@/lib/utils";
@@ -598,6 +601,30 @@ function QuoteCard({
     });
   };
 
+  /** Orçamento enxuto para mandar ao cliente: código, item, quantidade e valor. */
+  const downloadPdfOrcamento = () => {
+    const linhas: QuoteLine[] = quote.items.map((i) => ({
+      brand: brandName,
+      code: i.code,
+      name: i.name,
+      line: i.line ?? "",
+      pack: i.pack,
+      qty: i.qty,
+      unitPrice: i.unitPrice,
+    }));
+    downloadPdf(
+      buildQuotePdf(linhas, {
+        title: `Orçamento ${brandName}`,
+        customerName: quote.customer_name || "Cliente",
+        customerPhone: quote.customer_phone,
+        customerCnpj: quote.customer_cnpj,
+      }),
+      quoteFileName({ title: "", customerName: quote.customer_name || "cliente" }),
+    );
+    const c = conferirPrecos(quote.items, brand);
+    if (!c.ok) toast.warning("Confira os preços deste orçamento.", { description: resumoChecagem(c) });
+  };
+
   const cleanPhone = onlyDigits(quote.customer_phone);
   const whatsappUrl = `https://wa.me/55${cleanPhone}?text=${encodeURIComponent(
     `Olá, ${quote.customer_name}! Tudo bem? Recebemos o seu orçamento de ${brandName} no valor de ${brl(
@@ -668,6 +695,16 @@ function QuoteCard({
             title={pasteInstruction(brand as "belliz" | "payot")}
           >
             <ClipboardPaste className="size-4" /> Colar no modelo
+          </Button>
+
+          {/* Versao enxuta para mandar ao cliente */}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={downloadPdfOrcamento}
+            className="gap-1.5 text-xs"
+          >
+            <FileDown className="size-4" /> PDF do cliente
           </Button>
 
           {/* Abre a ficha consolidada do cliente */}

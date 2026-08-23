@@ -25,6 +25,7 @@ import { formatCnpj, formatPhone, onlyDigits } from "@/lib/leads";
 import { parseOrderDocument, type ExtractedOrder } from "@/lib/order-import.functions";
 import { parseOrderText } from "@/lib/order-text-parser";
 import { TABELAS, precoDaTabela, type TabelaId } from "@/lib/tabela-preco";
+import { conferirPrecos, resumoChecagem } from "@/lib/conferencia-preco";
 import {
   matchExtractedOrder,
   brandFromExtraction,
@@ -43,6 +44,20 @@ const brl = (v: number) =>
   v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 const MAX_FILE_MB = 8;
+
+/** Tira os campos que só existem na conferência e deixa o item pronto para salvar. */
+function payloadItemsDe(lines: DraftLine[]): QuoteItem[] {
+  return lines.map(
+    ({
+      raw: _raw,
+      match: _match,
+      packLabel: _packLabel,
+      customerCode: _customerCode,
+      suggestions: _suggestions,
+      ...rest
+    }) => ({ ...rest, unitPrice: Math.round(rest.unitPrice * 100) / 100 }),
+  );
+}
 
 interface ImportOrderDialogProps {
   open: boolean;
@@ -85,6 +100,12 @@ export function ImportOrderDialog({
     [lines],
   );
   const pendentes = lines.filter((l) => l.review).length;
+
+  // Rede de segurança: nenhum preço pode sair diferente da tabela sem aviso
+  const checagem = useMemo(
+    () => conferirPrecos(payloadItemsDe(lines), brand, TABELAS[tabela].desconto),
+    [lines, brand, tabela],
+  );
 
   const reset = () => {
     setStep("entrada");
@@ -231,11 +252,7 @@ export function ImportOrderDialog({
   const removerLinha = (index: number) =>
     setLines((prev) => prev.filter((_, i) => i !== index));
 
-  const payloadItems = (): QuoteItem[] =>
-    lines.map(({ raw: _raw, match: _match, packLabel: _packLabel, ...rest }) => ({
-      ...rest,
-      unitPrice: Math.round(rest.unitPrice * 100) / 100,
-    }));
+  const payloadItems = (): QuoteItem[] => payloadItemsDe(lines);
 
   const sheetMeta = () => ({
     brandId: brand,
@@ -456,6 +473,30 @@ export function ImportOrderDialog({
                 {a}
               </p>
             ))}
+
+            {(!checagem.ok || checagem.semCatalogo.length > 0) && (
+              <div className="rounded-xl border border-amber-500/50 bg-amber-500/5 p-4">
+                <p className="flex items-start gap-2 text-xs font-bold text-amber-700">
+                  <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+                  {resumoChecagem(checagem)}
+                </p>
+                {checagem.divergencias.length > 0 && (
+                  <ul className="mt-2 space-y-1">
+                    {checagem.divergencias.slice(0, 5).map((d) => (
+                      <li key={d.code} className="text-[11px] text-muted-foreground">
+                        <strong>[{d.code}]</strong> {d.name} — tabela {brl(d.esperado)}, no
+                        pedido {brl(d.encontrado)} ({d.percentual > 0 ? "+" : ""}
+                        {d.percentual.toFixed(1)}%)
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <p className="mt-2 text-[11px] text-muted-foreground">
+                  Se o preço veio escrito no pedido do cliente, pode ser proposital. Se
+                  não, ajuste antes de salvar.
+                </p>
+              </div>
+            )}
 
             {ignoradas.length > 0 && (
               <div className="rounded-xl border border-border bg-muted/40 p-4">

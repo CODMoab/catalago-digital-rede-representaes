@@ -3,6 +3,8 @@ import * as XLSX from "xlsx";
 import type { QuoteItem } from "@/lib/quotes.functions";
 import { slug, type OrderSheetMeta } from "@/lib/order-sheet";
 import { buildProvadorOrder } from "@/lib/provador";
+import { TABELA_VAREJO } from "@/lib/tabela-preco";
+import { conferirPrecos, resumoChecagem } from "@/lib/conferencia-preco";
 import modeloPayot from "@/data/payot-modelo-linhas.json";
 
 /**
@@ -64,7 +66,11 @@ function abaComoUsar(brandId: "belliz" | "payot"): (string | number)[][] {
  * Monta o arquivo de colagem.
  * Payot: uma coluna alinhada com o modelo. Belliz: código e quantidade.
  */
-export function buildPasteSheet(items: QuoteItem[], meta: OrderSheetMeta): Blob {
+export function buildPasteSheet(
+  items: QuoteItem[],
+  meta: OrderSheetMeta,
+  descontoTabela: number = TABELA_VAREJO,
+): Blob {
   const wb = XLSX.utils.book_new();
   const porCodigo = new Map<string, number>();
   for (const i of items) {
@@ -138,6 +144,20 @@ export function buildPasteSheet(items: QuoteItem[], meta: OrderSheetMeta): Blob 
         ...provador.map((l) => [l.code, l.originCode, l.name, l.boughtQty, l.qty]),
       );
     }
+  }
+
+  // Regra do sistema: o preço do catálogo já é o líquido, nada desconta em cima
+  const checagem = conferirPrecos(items, meta.brandId, descontoTabela);
+  conf.push([], ["CONFERÊNCIA DE PREÇO", resumoChecagem(checagem)]);
+  for (const d of checagem.divergencias.slice(0, 20)) {
+    conf.push([
+      d.code,
+      d.name,
+      "",
+      d.esperado,
+      d.encontrado,
+      `diferença de ${d.percentual > 0 ? "+" : ""}${d.percentual.toFixed(1)}% em relação à tabela`,
+    ]);
   }
 
   const wsConf = XLSX.utils.aoa_to_sheet(conf);
