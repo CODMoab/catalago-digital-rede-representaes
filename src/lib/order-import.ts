@@ -10,6 +10,10 @@ export type DraftLine = QuoteItem & {
   /** Como o item foi identificado. */
   match: "codigo" | "ean" | "nome" | "nenhum";
   packLabel: string;
+  /** Código que veio no pedido e não é nosso — normalmente o código interno do cliente. */
+  customerCode: string;
+  /** Outros produtos parecidos, para resolver a dúvida em um clique. */
+  suggestions: { code: string; name: string; line: string }[];
 };
 
 // Faixa de acentos combinantes (U+0300..U+036F), montada sem escapes no fonte.
@@ -141,11 +145,10 @@ export function matchExtractedOrder(order: ExtractedOrder, brand: BrandId): Draf
       }
     }
 
-    if (!entry) {
-      const qt = tokens(item.descricao);
-      let melhor: CatalogEntry | undefined;
-      let melhorScore = 0;
-      for (const e of catalog) {
+    // Ranking por nome: serve para escolher o produto e para sugerir alternativas
+    const qt = tokens(item.descricao);
+    const ranking = catalog
+      .map((e) => {
         let s = score(qt, e);
         // A cor decide entre produtos de nome idêntico
         if (corPedida) {
@@ -153,24 +156,54 @@ export function matchExtractedOrder(order: ExtractedOrder, brand: BrandId): Draf
           if (corItem === corPedida) s = Math.min(1, s + 0.35);
           else if (corItem) s *= 0.25;
         }
-        if (s > melhorScore + 0.001) {
-          melhorScore = s;
-          melhor = e;
-          empatados = 1;
-        } else if (melhor && Math.abs(s - melhorScore) <= 0.001) {
-          empatados += 1;
-        }
-      }
-      if (melhor && melhorScore >= 0.6) {
-        entry = melhor;
-        match = "nome";
-      }
+        return { e, s };
+      })
+      .filter((r) => r.s > 0.2)
+      .sort((a, b) => b.s - a.s)
+      .slice(0, 6);
+
+    if (!entry && ranking.length > 0 && ranking[0].s >= 0.6) {
+      entry = ranking[0].e;
+      match = "nome";
+      empatados = ranking.filter((r) => Math.abs(r.s - ranking[0].s) <= 0.001).length;
     }
+
+    // Código do cliente que por acaso existe no nosso catálogo: o nome manda.
+    // Sem isso, "PALETA DE SOMBRAS CHIC" com código interno 3999 viraria
+    // "Upderm Hialuronico" — erro silencioso e caro.
+    let codigoIgnorado = "";
+    if (
+      entry &&
+      match === "codigo" &&
+      qt.length > 0 &&
+      score(qt, entry) < 0.3 &&
+      ranking.length > 0 &&
+      ranking[0].s >= 0.6
+    ) {
+      codigoIgnorado = entry.code;
+      entry = ranking[0].e;
+      match = "nome";
+    }
+
+    // Código que veio no pedido mas não é do nosso catálogo: é do cliente
+    const customerCode =
+      item.codigo && (!entry || entry.code !== item.codigo) ? item.codigo : "";
+
+    const suggestions = ranking
+      .filter((r) => r.e.code !== entry?.code)
+      .slice(0, 3)
+      .map((r) => ({ code: r.e.code, name: r.e.name, line: r.e.line }));
 
     const notas: string[] = [];
     if (item.incerto && item.observacao) notas.push(item.observacao);
     if (!entry) notas.push("produto não encontrado no catálogo");
     else if (match === "nome") notas.push("produto identificado pelo nome, confirmar");
+
+    if (codigoIgnorado) {
+      notas.push(
+        `o código ${item.codigo} existe no catálogo (${codigoIgnorado}) mas com outro produto — usei o nome e tratei o código como interno do cliente`,
+      );
+    }
 
     if (entry && corPedida) {
       const corItem = variante(entry.name);
@@ -228,6 +261,8 @@ export function matchExtractedOrder(order: ExtractedOrder, brand: BrandId): Draf
       raw,
       match,
       packLabel: pack > 1 ? `coletivo de ${pack}` : "unidade",
+      customerCode,
+      suggestions,
     } satisfies DraftLine;
   });
 }

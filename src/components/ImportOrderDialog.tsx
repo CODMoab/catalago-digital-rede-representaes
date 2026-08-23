@@ -562,6 +562,13 @@ export function ImportOrderDialog({
                       <p className="mt-0.5 truncate text-sm font-semibold">
                         {l.code ? `[${l.code}] ${l.name}` : "— produto não identificado —"}
                       </p>
+                      {l.customerCode && (
+                        <p className="text-[11px] text-muted-foreground">
+                          Código do cliente:{" "}
+                          <span className="font-mono">{l.customerCode}</span> · não é do
+                          nosso catálogo
+                        </p>
+                      )}
                       {l.reviewNote && (
                         <p className="mt-1 flex items-start gap-1.5 text-[11px] font-medium text-amber-700">
                           <AlertTriangle className="mt-0.5 size-3 shrink-0" />
@@ -615,7 +622,30 @@ export function ImportOrderDialog({
                   </div>
 
                   {l.review && (
-                    <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-amber-500/30 pt-3">
+                    <div className="mt-3 space-y-2 border-t border-amber-500/30 pt-3">
+                      {l.suggestions.length > 0 && (
+                        <div>
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                            Talvez seja
+                          </p>
+                          <div className="mt-1 flex flex-wrap gap-1.5">
+                            {l.suggestions.map((s) => (
+                              <button
+                                key={s.code}
+                                type="button"
+                                onClick={() => trocarProduto(i, s.code)}
+                                className="rounded-lg border border-border bg-card px-2 py-1 text-left text-[11px] hover:border-primary hover:bg-primary/5"
+                              >
+                                <span className="font-medium">{s.name}</span>
+                                <span className="block text-[10px] text-muted-foreground">
+                                  [{s.code}] {s.line}
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      <div className="flex flex-wrap items-center gap-2">
                       <ProductPicker
                         brand={brand}
                         onPick={(code) => trocarProduto(i, code)}
@@ -630,6 +660,7 @@ export function ImportOrderDialog({
                       >
                         <CheckCircle2 className="size-3.5" /> Está certo, confirmar
                       </Button>
+                      </div>
                     </div>
                   )}
                 </div>
