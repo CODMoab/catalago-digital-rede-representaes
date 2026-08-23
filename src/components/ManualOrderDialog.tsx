@@ -24,13 +24,8 @@ import {
   productImage,
   type BrandId,
 } from "@/lib/catalog";
-import {
-  formatCnpj,
-  formatPhone,
-  onlyDigits,
-  getDiscountedPrice,
-  DEFAULT_DISCOUNT_PERCENT,
-} from "@/lib/leads";
+import { formatCnpj, formatPhone, onlyDigits } from "@/lib/leads";
+import { TABELAS, precoDaTabela, type TabelaId } from "@/lib/tabela-preco";
 import { findLead } from "@/lib/leads.functions";
 import {
   createManualQuote,
@@ -59,6 +54,7 @@ export function ManualOrderDialog({
   const [brand, setBrand] = useState<BrandId>("belliz");
   const [source, setSource] = useState<ManualSource>("whatsapp");
   const [status, setStatus] = useState<"novo" | "enviado" | "faturado">("novo");
+  const [tabela, setTabela] = useState<TabelaId>("varejo");
 
   const [cnpj, setCnpj] = useState("");
   const [name, setName] = useState("");
@@ -145,7 +141,7 @@ export function ManualOrderDialog({
           ean: p.ean ?? "",
           pack,
           qty: pack,
-          unitPrice: getDiscountedPrice(baseUnit, DEFAULT_DISCOUNT_PERCENT),
+          unitPrice: precoDaTabela(baseUnit, TABELAS[tabela].desconto),
           curva: null,
           packLabel: `coletivo de ${pack}`,
         },
@@ -162,7 +158,7 @@ export function ManualOrderDialog({
           ean: p.ean ?? "",
           pack: 1,
           qty: 1,
-          unitPrice: getDiscountedPrice(p.price, DEFAULT_DISCOUNT_PERCENT),
+          unitPrice: precoDaTabela(p.price, TABELAS[tabela].desconto),
           curva: null,
           packLabel: "unidade",
         },
@@ -314,6 +310,28 @@ export function ManualOrderDialog({
             </div>
 
             <div>
+              <Label htmlFor="mo-tabela" className="text-xs font-semibold">
+                Tabela de preço
+              </Label>
+              <select
+                id="mo-tabela"
+                value={tabela}
+                onChange={(e) => setTabela(e.target.value as TabelaId)}
+                className="mt-1 h-9 w-full rounded-md border border-border bg-background px-2.5 text-sm"
+              >
+                {Object.entries(TABELAS).map(([k, t]) => (
+                  <option key={k} value={k}>
+                    {t.label}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                Muda só o preço. Trocar depois de incluir itens não recalcula os já
+                lançados.
+              </p>
+            </div>
+
+            <div>
               <Label htmlFor="mo-status" className="text-xs font-semibold">
                 Situação
               </Label>
@@ -436,7 +454,7 @@ export function ManualOrderDialog({
                           <p className="truncate text-xs font-medium">{p.name}</p>
                           <p className="text-[11px] text-muted-foreground">
                             [{p.code}] {p.line} ·{" "}
-                            {brl(getDiscountedPrice(unit, DEFAULT_DISCOUNT_PERCENT))} un
+                            {brl(precoDaTabela(unit, TABELAS[tabela].desconto))} un
                           </p>
                         </div>
                         <Plus className="size-4 shrink-0 text-primary" />

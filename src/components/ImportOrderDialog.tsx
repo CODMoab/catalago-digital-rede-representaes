@@ -24,6 +24,7 @@ import { BRANDS, type BrandId } from "@/lib/catalog";
 import { formatCnpj, formatPhone, onlyDigits } from "@/lib/leads";
 import { parseOrderDocument, type ExtractedOrder } from "@/lib/order-import.functions";
 import { parseOrderText } from "@/lib/order-text-parser";
+import { TABELAS, precoDaTabela, type TabelaId } from "@/lib/tabela-preco";
 import {
   matchExtractedOrder,
   brandFromExtraction,
@@ -69,6 +70,7 @@ export function ImportOrderDialog({
   const [ignoradas, setIgnoradas] = useState<string[]>([]);
   const [avisos, setAvisos] = useState<string[]>([]);
   const [lidoPor, setLidoPor] = useState<"local" | "ia">("local");
+  const [tabela, setTabela] = useState<TabelaId>("varejo");
 
   const [name, setName] = useState("");
   const [cnpj, setCnpj] = useState("");
@@ -119,7 +121,7 @@ export function ImportOrderDialog({
   const aplicar = (order: ExtractedOrder, origem: "local" | "ia") => {
     const marca = brandFromExtraction(order) ?? brand;
     setBrand(marca);
-    setLines(matchExtractedOrder(order, marca));
+    setLines(matchExtractedOrder(order, marca, TABELAS[tabela].desconto));
     setObs(order.observacaoGeral ?? "");
     if (order.cliente) setName(order.cliente);
     if (order.cnpj) setCnpj(formatCnpj(order.cnpj));
@@ -182,6 +184,20 @@ export function ImportOrderDialog({
     }
   };
 
+  /** Troca a tabela de preço sem refazer o casamento nem perder as correções. */
+  const trocarTabela = (nova: TabelaId) => {
+    setTabela(nova);
+    const cat = catalogOf(brand);
+    setLines((prev) =>
+      prev.map((l) => {
+        const e = cat.find((c) => c.code === l.code);
+        return e
+          ? { ...l, unitPrice: precoDaTabela(e.baseUnit, TABELAS[nova].desconto) }
+          : l;
+      }),
+    );
+  };
+
   /** Troca o produto de uma linha por outro do catálogo, resolvendo a dúvida. */
   const trocarProduto = (index: number, code: string) => {
     const entry = catalogOf(brand).find((e) => e.code === code);
@@ -197,6 +213,7 @@ export function ImportOrderDialog({
               ean: entry.ean,
               pack: entry.pack,
               qty: Math.max(entry.pack, Math.ceil(l.qty / entry.pack) * entry.pack),
+              unitPrice: precoDaTabela(entry.baseUnit, TABELAS[tabela].desconto),
               match: "codigo",
               packLabel: entry.pack > 1 ? `coletivo de ${entry.pack}` : "unidade",
             }
@@ -491,6 +508,23 @@ export function ImportOrderDialog({
                     </Button>
                   ))}
                 </div>
+              </div>
+              <div>
+                <Label htmlFor="imp-tabela" className="text-xs font-semibold">
+                  Tabela de preço
+                </Label>
+                <select
+                  id="imp-tabela"
+                  value={tabela}
+                  onChange={(e) => trocarTabela(e.target.value as TabelaId)}
+                  className="mt-1 h-9 w-full rounded-md border border-border bg-background px-2.5 text-sm"
+                >
+                  {Object.entries(TABELAS).map(([k, t]) => (
+                    <option key={k} value={k}>
+                      {t.label}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div>
                 <Label htmlFor="imp-source" className="text-xs font-semibold">

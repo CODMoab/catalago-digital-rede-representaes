@@ -1,5 +1,5 @@
 import { BELLIZ, PAYOT, type BrandId } from "@/lib/catalog";
-import { getDiscountedPrice, DEFAULT_DISCOUNT_PERCENT } from "@/lib/leads";
+import { TABELA_VAREJO, precoDaTabela } from "@/lib/tabela-preco";
 import type { QuoteItem } from "@/lib/quotes.functions";
 import type { ExtractedOrder } from "@/lib/order-import.functions";
 
@@ -113,7 +113,11 @@ export function brandFromExtraction(order: ExtractedOrder): BrandId | null {
  * Converte o que a IA leu em linhas de pedido casadas com o catálogo.
  * Tudo que não bater com segurança volta marcado para conferência.
  */
-export function matchExtractedOrder(order: ExtractedOrder, brand: BrandId): DraftLine[] {
+export function matchExtractedOrder(
+  order: ExtractedOrder,
+  brand: BrandId,
+  descontoTabela: number = TABELA_VAREJO,
+): DraftLine[] {
   const catalog = catalogOf(brand);
   const byCode = new Map(catalog.map((e) => [norm(e.code), e]));
   const byEan = new Map(catalog.filter((e) => e.ean).map((e) => [digits(e.ean), e]));
@@ -233,9 +237,7 @@ export function matchExtractedOrder(order: ExtractedOrder, brand: BrandId): Draf
       notas.push("quantidade não identificada, assumido o mínimo");
     }
 
-    const precoCatalogo = entry
-      ? getDiscountedPrice(entry.baseUnit, DEFAULT_DISCOUNT_PERCENT)
-      : 0;
+    const precoCatalogo = entry ? precoDaTabela(entry.baseUnit, descontoTabela) : 0;
     const unitPrice =
       item.precoUnitario > 0 ? Math.round(item.precoUnitario * 100) / 100 : precoCatalogo;
 
