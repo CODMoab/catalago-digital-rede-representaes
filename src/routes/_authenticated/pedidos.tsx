@@ -43,6 +43,7 @@ import {
 } from "@/lib/quotes.functions";
 import { ManualOrderDialog } from "@/components/ManualOrderDialog";
 import { ImportOrderDialog } from "@/components/ImportOrderDialog";
+import { UpdateTableDialog } from "@/components/UpdateTableDialog";
 import { CustomerProfileDialog } from "@/components/CustomerProfileDialog";
 import { customerKey, quoteKey } from "@/lib/customer-profile";
 import { getCatalog } from "@/lib/catalog.functions";
@@ -107,6 +108,7 @@ function QuotesAndLeadsPage() {
   const [loading, setLoading] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [tabelaOpen, setTabelaOpen] = useState(false);
   // Ficha do cliente: guarda a chave (CNPJ ou telefone) de quem está aberto
   const [profileKey, setProfileKey] = useState<string | null>(null);
   const deleteQuoteFn = useServerFn(deleteQuote);
@@ -369,6 +371,15 @@ function QuotesAndLeadsPage() {
                 >
                   <Sparkles className="size-4" /> Importar pedido
                 </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5 text-xs font-bold"
+                  onClick={() => setTabelaOpen(true)}
+                  title="Importar a tabela de precos do mes da Payot"
+                >
+                  <RefreshCw className="size-4" /> Atualizar tabela
+                </Button>
               </div>
             </div>
 
@@ -544,6 +555,12 @@ function QuotesAndLeadsPage() {
         open={importOpen}
         onOpenChange={setImportOpen}
         onCreated={() => void loadData()}
+      />
+
+      <UpdateTableDialog
+        open={tabelaOpen}
+        onOpenChange={setTabelaOpen}
+        onApplied={() => void loadData()}
       />
 
       <CustomerProfileDialog

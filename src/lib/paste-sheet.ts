@@ -5,7 +5,7 @@ import { slug, type OrderSheetMeta } from "@/lib/order-sheet";
 import { buildProvadorOrder } from "@/lib/provador";
 import { TABELA_VAREJO } from "@/lib/tabela-preco";
 import { conferirPrecos, resumoChecagem } from "@/lib/conferencia-preco";
-import modeloPayot from "@/data/payot-modelo-linhas.json";
+import { modeloPayotAtual, origemDoModelo } from "@/lib/modelo-payot";
 
 /**
  * Planilha de colagem: leva o pedido para os modelos oficiais das indústrias
@@ -19,8 +19,6 @@ import modeloPayot from "@/data/payot-modelo-linhas.json";
  */
 const round2 = (v: number) => Math.round(v * 100) / 100;
 
-const PAYOT_PRIMEIRA_LINHA = modeloPayot.primeiraLinha;
-const PAYOT_COLUNA = modeloPayot.colunaQtd;
 const BELLIZ_PRIMEIRA_LINHA = 8;
 
 export function pasteSheetFileName(meta: OrderSheetMeta) {
@@ -35,21 +33,25 @@ export function pasteSheetFileName(meta: OrderSheetMeta) {
 
 /** Onde colar, escrito para quem vai usar. */
 export function pasteInstruction(brandId: "belliz" | "payot"): string {
-  return brandId === "payot"
-    ? `Abra o modelo da Payot, clique na célula ${PAYOT_COLUNA}${PAYOT_PRIMEIRA_LINHA} e cole a coluna inteira.`
-    : `Abra o Talão de Pedidos Belliz, vá na aba _PEDIDO, clique na célula A${BELLIZ_PRIMEIRA_LINHA} e cole as duas colunas.`;
+  if (brandId !== "payot") {
+    return `Abra o Talão de Pedidos Belliz, vá na aba _PEDIDO, clique na célula A${BELLIZ_PRIMEIRA_LINHA} e cole as duas colunas.`;
+  }
+  const m = modeloPayotAtual();
+  return `Abra o modelo da Payot, clique na célula ${m.colunaQtd}${m.primeiraLinha} e cole a coluna inteira.`;
 }
 
 function abaComoUsar(brandId: "belliz" | "payot"): (string | number)[][] {
+  const m = modeloPayotAtual();
   const passos =
     brandId === "payot"
       ? [
           ["1", "Abra o modelo Tabela De Preços Payot do mês."],
-          ["2", `Clique na célula ${PAYOT_COLUNA}${PAYOT_PRIMEIRA_LINHA} (primeira linha da coluna QTD).`],
+          ["2", `Clique na célula ${m.colunaQtd}${m.primeiraLinha} (primeira linha da coluna QTD).`],
           ["3", "Copie a coluna inteira da aba COLAR e cole aí. Uma colagem só."],
           ["4", "Confira o total e a aba CONFERENCIA antes de enviar."],
           ["", ""],
-          ["Atenção", "Se a Payot mudar o modelo, a ordem das linhas muda junto. Compare o primeiro e o último código da aba CONFERENCIA com o modelo antes de colar."],
+          ["Atenção", "Se a Payot mudar o modelo, a ordem das linhas muda junto. Importe a tabela nova no painel antes de colar."],
+          ["Mapa", origemDoModelo(m)],
         ]
       : [
           ["1", "Abra o Talão de Pedidos Belliz do mês."],
@@ -80,6 +82,7 @@ export function buildPasteSheet(
   let naoEncontrados: string[] = [];
 
   if (meta.brandId === "payot") {
+    const modeloPayot = modeloPayotAtual();
     const coluna = modeloPayot.linhas.map((code) => {
       if (!code) return [null];
       const qtd = porCodigo.get(code);
