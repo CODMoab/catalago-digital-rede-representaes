@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
   FileSpreadsheet,
+  ClipboardPaste,
   LogOut,
   RefreshCw,
   Search,
@@ -47,6 +48,7 @@ import { getCatalog } from "@/lib/catalog.functions";
 import { applyCatalog } from "@/lib/catalog";
 import { listLeadsForReactivation, type ReactivationLead } from "@/lib/leads.functions";
 import { buildOrderSheet, downloadBlob, orderSheetFileName } from "@/lib/order-sheet";
+import { buildPasteSheet, pasteSheetFileName, pasteInstruction } from "@/lib/paste-sheet";
 import { buildLeadsSheet, leadsSheetFileName } from "@/lib/leads-sheet";
 import { formatCnpj, formatPhone, onlyDigits } from "@/lib/leads";
 import { cn } from "@/lib/utils";
@@ -580,6 +582,22 @@ function QuoteCard({
     downloadBlob(buildOrderSheet(quote.items, meta), orderSheetFileName(meta));
   };
 
+  /** Versão pronta para colar no modelo oficial da indústria. */
+  const downloadColar = () => {
+    const meta = {
+      brandId: brand as "belliz" | "payot",
+      brandName,
+      customerName: quote.customer_name,
+      customerPhone: quote.customer_phone,
+      customerCnpj: quote.customer_cnpj,
+      createdAt: quote.created_at,
+    };
+    downloadBlob(buildPasteSheet(quote.items, meta), pasteSheetFileName(meta));
+    toast.success("Arquivo de colagem baixado.", {
+      description: pasteInstruction(meta.brandId),
+    });
+  };
+
   const cleanPhone = onlyDigits(quote.customer_phone);
   const whatsappUrl = `https://wa.me/55${cleanPhone}?text=${encodeURIComponent(
     `Olá, ${quote.customer_name}! Tudo bem? Recebemos o seu orçamento de ${brandName} no valor de ${brl(
@@ -639,6 +657,17 @@ function QuoteCard({
           {/* Botão de Download de Planilha Padrão da Marca */}
           <Button size="sm" onClick={download} className="gap-1.5">
             <FileSpreadsheet className="size-4" /> Planilha {brandName}
+          </Button>
+
+          {/* Colunas alinhadas com o modelo oficial da industria */}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={downloadColar}
+            className="gap-1.5 text-xs"
+            title={pasteInstruction(brand as "belliz" | "payot")}
+          >
+            <ClipboardPaste className="size-4" /> Colar no modelo
           </Button>
 
           {/* Abre a ficha consolidada do cliente */}

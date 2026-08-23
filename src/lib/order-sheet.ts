@@ -14,7 +14,7 @@ export type OrderSheetMeta = {
 
 const round2 = (v: number) => Math.round(v * 100) / 100;
 
-const slug = (v: string) =>
+export const slug = (v: string) =>
   v
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
