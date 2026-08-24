@@ -2,7 +2,8 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  ArrowLeft,
+  ArrowRight,
+  Link as LinkIcon,
   FileSpreadsheet,
   ClipboardPaste,
   FileDown,
@@ -242,11 +243,13 @@ function QuotesAndLeadsPage() {
       {/* Header do Painel */}
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border pb-6">
         <div>
+          {/* Este painel é a página inicial do representante: o catálogo é um
+              destino, não um "voltar" */}
           <Link
             to="/"
             className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-primary transition-colors"
           >
-            <ArrowLeft className="size-3.5" /> Voltar ao catálogo público
+            Ver o catálogo público <ArrowRight className="size-3.5" />
           </Link>
           <h1 className="mt-1 text-3xl font-black tracking-tight">
             Painel do Representante
@@ -909,7 +912,18 @@ function ReactivationCard({
     ? `Olá, *${firstName}*! Tudo bem? Aqui é da *Rede Representações*.\n\nPassando para saber como estão as vendas dos produtos na sua loja (*${lead.name}*) e se precisa de reposição de estoque para as marcas *Belliz* e *Payot*. Estamos com ótimas condições de entrega!`
     : `Olá, *${firstName}*! Tudo bem? Aqui é da *Rede Representações*.\n\nVimos que você se cadastrou no nosso Catálogo Digital para a loja *${lead.name}* e desbloqueou seu cupom de *15% de desconto* de boas-vindas.\n\nVocê gostaria de tirar alguma dúvida sobre os produtos das marcas *Belliz* ou *Payot*? Posso te ajudar a montar o mix ideal para o giro da sua loja!`;
 
-  const whatsappUrl = `https://wa.me/55${cleanPhone}?text=${encodeURIComponent(message)}`;
+  // Link pessoal: o cliente abre e entra reconhecido, sem tela de cadastro.
+  // Quem só apareceu em pedidos antigos ainda não tem token.
+  const linkPessoal = lead.access_token
+    ? `${typeof window !== "undefined" ? window.location.origin : ""}/?c=${lead.access_token}`
+    : "";
+  const mensagemCompleta = linkPessoal
+    ? `${message}
+
+Seu catálogo, já com seu desconto aplicado: ${linkPessoal}`
+    : message;
+
+  const whatsappUrl = `https://wa.me/55${cleanPhone}?text=${encodeURIComponent(mensagemCompleta)}`;
 
   return (
     <div
@@ -999,6 +1013,23 @@ function ReactivationCard({
           >
             Copiar Dados
           </Button>
+
+          {linkPessoal && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 text-xs"
+              title="Link em que este cliente entra já reconhecido, sem cadastro."
+              onClick={() => {
+                void navigator.clipboard.writeText(linkPessoal);
+                toast.success("Link pessoal copiado.", {
+                  description: `${lead.name} entra direto, sem passar pelo cadastro.`,
+                });
+              }}
+            >
+              <LinkIcon className="size-4" /> Link do cliente
+            </Button>
+          )}
         </div>
       </div>
     </div>

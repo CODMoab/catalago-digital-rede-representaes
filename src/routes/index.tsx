@@ -57,6 +57,7 @@ import {
 } from "@/lib/quote-pdf";
 import {
   getLocalCustomer,
+  saveLocalCustomer,
   getDiscountedPrice,
   formatPhone,
   DEFAULT_DISCOUNT_PERCENT,
@@ -65,6 +66,8 @@ import {
 } from "@/lib/leads";
 import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
+import { findLeadByToken } from "@/lib/leads.functions";
+import { supabase } from "@/integrations/supabase/client";
 
 import { cn } from "@/lib/utils";
 import { CatalogGallery } from "@/components/CatalogGallery";
@@ -123,20 +126,72 @@ function CatalogPage() {
     setWelcomeOpen(true);
   };
 
+  const findByToken = useServerFn(findLeadByToken);
+
+  /**
+   * Quem está entrando, na ordem do que dá menos trabalho para o cliente:
+   *   1. link pessoal (?c=...) — entra reconhecido sem digitar nada;
+   *   2. cadastro já feito neste navegador;
+   *   3. representante logado — não é cliente, não vê a portaria;
+   *   4. visitante novo — aí sim a tela de escolha.
+   */
   useEffect(() => {
-    const saved = getLocalCustomer();
-    if (saved) {
-      setCustomerProfile(saved);
+    let vivo = true;
+
+    const entrar = (prof: CustomerProfile) => {
+      setCustomerProfile(prof);
       setCustomer({
-        name: saved.name,
-        phone: formatPhone(saved.phone),
-        cnpj: formatCnpj(saved.cnpj),
+        name: prof.name,
+        phone: formatPhone(prof.phone),
+        cnpj: formatCnpj(prof.cnpj),
       });
-    } else {
-      // Visitante novo: abre na escolha do canal (primeiro acesso x já sou cliente)
-      openWelcome("choice");
-    }
-  }, []);
+    };
+
+    void (async () => {
+      const url = new URL(window.location.href);
+      const token = url.searchParams.get("c");
+      if (token) {
+        // Tira o token da barra de endereço: link é coisa que se encaminha.
+        url.searchParams.delete("c");
+        window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+        try {
+          const res = await findByToken({ data: { token } });
+          if (!vivo) return;
+          if (res.found) {
+            const prof = res.customer as CustomerProfile;
+            saveLocalCustomer(prof);
+            entrar(prof);
+            toast.success(`Bem-vindo de volta, ${prof.name.split(" ")[0]}!`);
+            return;
+          }
+        } catch {
+          // Link velho ou torto: segue como visitante comum.
+        }
+      }
+
+      const saved = getLocalCustomer();
+      if (saved) {
+        if (vivo) entrar(saved);
+        return;
+      }
+
+      // O representante entra no catálogo para conferir preço e foto, não para
+      // se cadastrar. Se há sessão aberta, a portaria não aparece.
+      try {
+        const { data } = await supabase.auth.getSession();
+        if (!vivo) return;
+        if (data.session) return;
+      } catch {
+        // Sem resposta do login: trata como visitante.
+      }
+
+      if (vivo) openWelcome("choice");
+    })();
+
+    return () => {
+      vivo = false;
+    };
+  }, [findByToken]);
 
   const handleCustomerReady = (prof: CustomerProfile | null) => {
     setCustomerProfile(prof);

@@ -128,9 +128,48 @@ export type ReactivationLead = {
   quotes_total: number;
   last_quote_at: string | null;
   has_ordered: boolean;
+  /** Token do link pessoal. Vazio para quem só apareceu em pedidos antigos. */
+  access_token: string;
 };
 
 /** Lista todos os clientes/leads cadastrados e cruza com pedidos para identificar oportunidades de reativação (admin) */
+/**
+ * Reconhece o cliente pelo token do link pessoal.
+ *
+ * É o caminho que evita a tela de cadastro: o representante manda o link no
+ * WhatsApp e o cliente entra direto. Token inválido não é erro — cai na tela
+ * normal, como qualquer visitante.
+ */
+export const findLeadByToken = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) => z.object({ token: z.string().uuid() }).parse(data))
+  .handler(async ({ data }) => {
+    try {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { data: lead } = await supabaseAdmin
+        .from("leads" as any)
+        .select("*")
+        .eq("access_token", data.token)
+        .limit(1)
+        .maybeSingle();
+      if (!lead) return { found: false as const };
+      return {
+        found: true as const,
+        customer: {
+          name: (lead as any).name,
+          phone: (lead as any).phone,
+          cnpj: (lead as any).cnpj,
+          city: (lead as any).city || "",
+          state: (lead as any).state || "BA",
+          discountPercent: (lead as any).discount_percent || 15,
+          registeredAt: (lead as any).created_at || new Date().toISOString(),
+          spunRoulette: true,
+        },
+      };
+    } catch {
+      return { found: false as const };
+    }
+  });
+
 export const listLeadsForReactivation = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
@@ -194,6 +233,7 @@ export const listLeadsForReactivation = createServerFn({ method: "GET" })
           quotes_total: total,
           last_quote_at: lastAt,
           has_ordered: count > 0,
+          access_token: l.access_token || "",
         });
       }
 
@@ -206,7 +246,10 @@ export const listLeadsForReactivation = createServerFn({ method: "GET" })
         registeredKeys.add(key);
 
         const quoteInfo = quotesByCnpj.get(key);
+        // Cliente que só existe em pedidos antigos ainda não tem link pessoal:
+        // ele ganha um quando fizer o cadastro.
         result.push({
+          access_token: "",
           id: q.id,
           name: q.customer_name,
           phone: q.customer_phone,

@@ -177,15 +177,19 @@ function AdminPage() {
     <main className="mx-auto max-w-5xl px-4 py-8">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <Link to="/" className="inline-flex items-center gap-1 text-sm text-muted-foreground">
-            <ArrowLeft className="h-4 w-4" /> Voltar ao catálogo
+          {/* O painel de pedidos é a casa do representante, não o catálogo público */}
+          <Link
+            to="/pedidos"
+            className="inline-flex items-center gap-1 text-sm font-semibold text-muted-foreground hover:text-primary transition-colors"
+          >
+            <ArrowLeft className="h-4 w-4" /> Voltar ao painel
           </Link>
           <h1 className="mt-1 text-2xl font-bold">Base viva de preços</h1>
           <Link
-            to="/pedidos"
-            className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
+            to="/"
+            className="mt-1 inline-flex items-center gap-1 text-xs text-muted-foreground hover:underline"
           >
-            Ir para o painel de pedidos e clientes →
+            Ver o catálogo público →
           </Link>
         </div>
         <Button
