@@ -110,6 +110,56 @@ export const setQuoteStatus = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+/**
+ * Marca itens como conferidos.
+ *
+ * Item lido de foto ou de texto entra no pedido com sinal de "conferir". Este é
+ * o único caminho que apaga esse sinal — de propósito: o pedido só perde a
+ * pendência depois que uma pessoa olhou item por item.
+ */
+export const confirmarItens = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: unknown) =>
+    z
+      .object({
+        id: z.string().uuid(),
+        /** Códigos conferidos. Vazio significa "conferi todos". */
+        codes: z.array(z.string()).default([]),
+      })
+      .parse(data),
+  )
+  .handler(async ({ data, context }) => {
+    const { data: atual, error: erroLeitura } = await context.supabase
+      .from("quotes")
+      .select("items")
+      .eq("id", data.id)
+      .maybeSingle();
+    if (erroLeitura) throw new Error(erroLeitura.message);
+    if (!atual) throw new Error("Pedido não encontrado.");
+
+    const alvo = new Set(data.codes);
+    const quando = new Date().toLocaleDateString("pt-BR");
+    let conferidos = 0;
+
+    const items = ((atual.items as unknown as QuoteItem[]) ?? []).map((i) => {
+      if (!i.review) return i;
+      if (alvo.size > 0 && !alvo.has(i.code)) return i;
+      conferidos += 1;
+      return {
+        ...i,
+        review: false,
+        reviewNote: `Conferido no painel em ${quando}${i.reviewNote ? ` — era: ${i.reviewNote}` : ""}`,
+      };
+    });
+
+    const { error } = await context.supabase
+      .from("quotes")
+      .update({ items: items as never })
+      .eq("id", data.id);
+    if (error) throw new Error(error.message);
+    return { ok: true, conferidos, pendentes: items.filter((i) => i.review).length };
+  });
+
 /* ---------------- Pedido lançado pelo painel (WhatsApp, foto, e-mail…) ---------------- */
 
 /** Canais por onde o pedido chegou fora do catálogo. */

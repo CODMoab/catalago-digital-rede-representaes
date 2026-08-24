@@ -45,6 +45,7 @@ import {
 import { ManualOrderDialog } from "@/components/ManualOrderDialog";
 import { ImportOrderDialog } from "@/components/ImportOrderDialog";
 import { UpdateTableDialog } from "@/components/UpdateTableDialog";
+import { PendingReviewDialog } from "@/components/PendingReviewDialog";
 import { CustomerProfileDialog } from "@/components/CustomerProfileDialog";
 import { customerKey, quoteKey } from "@/lib/customer-profile";
 import { getCatalog } from "@/lib/catalog.functions";
@@ -114,6 +115,8 @@ function QuotesAndLeadsPage() {
   const [manualOpen, setManualOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [tabelaOpen, setTabelaOpen] = useState(false);
+  // Quantos pedidos ainda têm item lido sem certeza — vira aviso na aba.
+  const pedidosAConferir = quotes.filter((q) => q.items.some((i) => i.review)).length;
   // Traz o mapa da tabela da Payot do banco assim que o painel abre, para a
   // colagem sair alinhada mesmo em um aparelho que nunca importou a tabela.
   const { status: statusModelo, publicar: publicarModelo } = useModeloPayot();
@@ -303,6 +306,14 @@ function QuotesAndLeadsPage() {
               <span className="ml-1 rounded-full bg-primary/20 px-2 py-0.5 text-[10px] text-primary">
                 {quotes.length}
               </span>
+              {pedidosAConferir > 0 && (
+                <span
+                  className="ml-1 rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-bold text-amber-600"
+                  title="Pedidos com item lido sem certeza, esperando conferência."
+                >
+                  {pedidosAConferir} a conferir
+                </span>
+              )}
             </TabsTrigger>
             <TabsTrigger value="reactivation" className="gap-2 font-bold text-xs sm:text-sm">
               <Users className="size-4" /> Reativação de Clientes
@@ -397,6 +408,7 @@ function QuotesAndLeadsPage() {
             <div className="space-y-3">
               {filteredQuotes.map((q) => (
                 <QuoteCard
+                  onReload={() => void loadData()}
                   onDelete={() => removeQuote(q)}
                   onOpenProfile={() => setProfileKey(quoteKey(q))}
                   key={q.id}
@@ -592,15 +604,35 @@ function QuoteCard({
   onStatus,
   onDelete,
   onOpenProfile,
+  onReload,
 }: {
   quote: QuoteRecord;
   onStatus: (status: (typeof STATUS)[number]) => Promise<void>;
   onDelete: () => void;
   onOpenProfile: () => void;
+  onReload: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const brand = quote.brand_id as BrandId;
   const brandName = BRANDS[brand]?.name ?? quote.brand_id;
+
+  // Itens que o sistema leu sem certeza. Enquanto houver, nenhum arquivo sai
+  // sem passar pela conferência.
+  const pendentes = quote.items.filter((i) => i.review);
+  const [conferenciaAberta, setConferenciaAberta] = useState(false);
+  const [acaoBloqueada, setAcaoBloqueada] = useState<
+    { rotulo: string; executar: () => void } | null
+  >(null);
+
+  /** Só deixa gerar arquivo depois que a pendência foi olhada. */
+  const comConferencia = (rotulo: string, executar: () => void) => () => {
+    if (pendentes.length === 0) {
+      executar();
+      return;
+    }
+    setAcaoBloqueada({ rotulo, executar });
+    setConferenciaAberta(true);
+  };
 
   const download = () => {
     const meta = {
@@ -754,8 +786,29 @@ function QuoteCard({
             ))}
           </select>
 
+          {pendentes.length > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                setAcaoBloqueada(null);
+                setConferenciaAberta(true);
+              }}
+              className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/15 px-3 py-1 text-[11px] font-bold text-amber-700 transition-colors hover:bg-amber-500/25"
+              title="O sistema leu estes itens sem certeza. Clique para conferir."
+            >
+              <AlertCircle className="size-3.5" />
+              {pendentes.length === 1
+                ? "1 item a conferir"
+                : `${pendentes.length} itens a conferir`}
+            </button>
+          )}
+
           {/* Botão de Download de Planilha Padrão da Marca */}
-          <Button size="sm" onClick={download} className="gap-1.5">
+          <Button
+            size="sm"
+            onClick={comConferencia("Baixar planilha", download)}
+            className="gap-1.5"
+          >
             <FileSpreadsheet className="size-4" /> Planilha {brandName}
           </Button>
 
@@ -763,7 +816,7 @@ function QuoteCard({
           <Button
             size="sm"
             variant="outline"
-            onClick={downloadColar}
+            onClick={comConferencia("Baixar colagem", downloadColar)}
             className="gap-1.5 text-xs"
             title={pasteInstruction(brand as "belliz" | "payot")}
           >
@@ -790,10 +843,10 @@ function QuoteCard({
                     ? `Preenche o ${talao.nome} guardado neste navegador.`
                     : "Escolha o Talão de Pedidos da Belliz uma vez; depois é só clicar."
                 }
-                onClick={() => {
+                onClick={comConferencia("Gerar talão", () => {
                   if (talao) void gerarTalao(talao);
                   else talaoRef.current?.click();
-                }}
+                })}
               >
                 <FileSpreadsheet className="size-4" />
                 {gerandoTalao ? "Preenchendo…" : talao ? "Talão preenchido" : "Talão: escolher modelo"}
@@ -805,7 +858,7 @@ function QuoteCard({
           <Button
             size="sm"
             variant="outline"
-            onClick={downloadPdfOrcamento}
+            onClick={comConferencia("Baixar PDF", downloadPdfOrcamento)}
             className="gap-1.5 text-xs"
           >
             <FileDown className="size-4" /> PDF do cliente
@@ -892,6 +945,19 @@ function QuoteCard({
           ))}
         </div>
       )}
+
+      <PendingReviewDialog
+        open={conferenciaAberta}
+        onOpenChange={(v) => {
+          setConferenciaAberta(v);
+          if (!v) setAcaoBloqueada(null);
+        }}
+        quoteId={quote.id}
+        customerName={quote.customer_name}
+        pendentes={pendentes}
+        acaoBloqueada={acaoBloqueada}
+        onConfirmed={onReload}
+      />
     </div>
   );
 }
