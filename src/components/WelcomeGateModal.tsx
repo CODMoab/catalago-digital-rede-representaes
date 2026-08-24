@@ -46,6 +46,9 @@ import {
   BA_CITIES,
 } from "@/lib/leads";
 import { saveLead, findLead } from "@/lib/leads.functions";
+import { cn } from "@/lib/utils";
+import { consultarCnpj } from "@/lib/cnpj.functions";
+import { avaliarCnpj, PERFIS, type ConsultaCnpj, type PerfilLead } from "@/lib/cnpj";
 import { DiscountRoulette } from "./DiscountRoulette";
 import { useServerFn } from "@tanstack/react-start";
 
@@ -80,9 +83,15 @@ export function WelcomeGateModal({
   // Login de cliente existente (canal: já sou cliente)
   const [loginIdentifier, setLoginIdentifier] = useState("");
   const [isSearching, setIsSearching] = useState(false);
+  // Consulta do CNPJ na Receita: confere se a empresa existe, se está ativa e
+  // que ramo é. Nunca trava o cadastro se a consulta não responder.
+  const [consulta, setConsulta] = useState<ConsultaCnpj | null>(null);
+  const [consultando, setConsultando] = useState(false);
+  const [erroCnpj, setErroCnpj] = useState("");
 
   const saveLeadFn = useServerFn(saveLead);
   const findLeadFn = useServerFn(findLead);
+  const consultarCnpjFn = useServerFn(consultarCnpj);
 
   const isOutOfCoverage = state !== SERVED_STATE;
 
@@ -90,6 +99,43 @@ export function WelcomeGateModal({
   useEffect(() => {
     if (open) setView(initialView);
   }, [open, initialView]);
+
+  // Assim que o CNPJ fica completo, confere na Receita e preenche o que der.
+  useEffect(() => {
+    const limpo = onlyDigits(cnpj);
+    if (limpo.length !== 14) {
+      setConsulta(null);
+      setErroCnpj("");
+      return;
+    }
+    let vivo = true;
+    setConsultando(true);
+    setErroCnpj("");
+    void (async () => {
+      try {
+        const res = await consultarCnpjFn({ data: { cnpj: limpo } });
+        if (!vivo) return;
+        if (res.ok) {
+          setConsulta(res.dados);
+          // Só preenche o que o cliente ainda não escreveu, para não atropelar
+          // o nome que ele prefere usar.
+          setName((atual) => atual.trim() || res.dados.nomeFantasia || res.dados.razaoSocial);
+          setCity((atual) => atual.trim() || res.dados.cidade);
+          if (res.dados.uf) setState(res.dados.uf);
+        } else {
+          setConsulta(null);
+          setErroCnpj(res.mensagem);
+        }
+      } catch {
+        if (vivo) setErroCnpj("");
+      } finally {
+        if (vivo) setConsultando(false);
+      }
+    })();
+    return () => {
+      vivo = false;
+    };
+  }, [cnpj, consultarCnpjFn]);
 
   const handleStartRoulette = (e: React.FormEvent) => {
     e.preventDefault();
@@ -109,6 +155,12 @@ export function WelcomeGateModal({
     }
     if (!city.trim() || city.trim().length < 2) {
       toast.error("Por favor, informe a cidade da sua loja.");
+      return;
+    }
+    if (consulta && avaliarCnpj(consulta).bloqueia) {
+      toast.error(avaliarCnpj(consulta).titulo, {
+        description: "Fale com a gente pelo WhatsApp para resolvermos o cadastro.",
+      });
       return;
     }
     if (isOutOfCoverage) {
@@ -149,6 +201,15 @@ export function WelcomeGateModal({
           state: profile.state,
           discount_percent: profile.discountPercent,
           source: "welcome_roulette",
+          razao_social: consulta?.razaoSocial ?? "",
+          nome_fantasia: consulta?.nomeFantasia ?? "",
+          situacao_cadastral: consulta?.situacaoTexto ?? "",
+          cnae: consulta?.cnae ?? "",
+          cnae_descricao: consulta?.cnaeDescricao ?? "",
+          perfil: consulta?.perfil ?? "",
+          endereco: consulta?.endereco ?? "",
+          bairro: consulta?.bairro ?? "",
+          cep: consulta?.cep ?? "",
         },
       });
       if (!res?.success) {
@@ -451,6 +512,11 @@ export function WelcomeGateModal({
                       className="pl-9"
                     />
                   </div>
+                  <RetornoDaReceita
+                    consultando={consultando}
+                    consulta={consulta}
+                    erro={erroCnpj}
+                  />
                 </div>
 
                 {/* Cidade + Estado (filtro da área de atuação) */}
@@ -596,5 +662,91 @@ function BackButton({ onClick }: { onClick: () => void }) {
     >
       <ArrowLeft className="size-3.5" /> Voltar
     </button>
+  );
+}
+
+/**
+ * O que a Receita respondeu, em uma caixa curta embaixo do campo.
+ *
+ * Serve para o cliente ver que o sistema conferiu — e para ele perceber cedo se
+ * digitou o CNPJ errado, em vez de descobrir quando o pedido não faturar.
+ */
+function RetornoDaReceita({
+  consultando,
+  consulta,
+  erro,
+}: {
+  consultando: boolean;
+  consulta: ConsultaCnpj | null;
+  erro: string;
+}) {
+  if (consultando) {
+    return (
+      <p className="mt-2 flex items-center gap-2 text-[11px] text-muted-foreground">
+        <span className="size-3 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+        Conferindo na Receita Federal…
+      </p>
+    );
+  }
+
+  if (erro) {
+    return (
+      <p className="mt-2 rounded-lg bg-destructive/10 px-3 py-2 text-[11px] font-semibold text-destructive">
+        {erro}
+      </p>
+    );
+  }
+
+  if (!consulta) return null;
+
+  const veredito = avaliarCnpj(consulta);
+  const perfil = PERFIS[consulta.perfil as PerfilLead];
+  const ativa = consulta.situacao === "ativa";
+
+  return (
+    <div
+      className={cn(
+        "mt-2 rounded-lg border px-3 py-2 text-[11px]",
+        veredito.bloqueia
+          ? "border-destructive/40 bg-destructive/5"
+          : ativa
+            ? "border-emerald-500/40 bg-emerald-500/5"
+            : "border-amber-500/40 bg-amber-500/5",
+      )}
+    >
+      <p className="flex items-center gap-1.5 font-bold">
+        {veredito.bloqueia ? (
+          <AlertTriangle className="size-3.5 text-destructive" />
+        ) : ativa ? (
+          <CheckCircle2 className="size-3.5 text-emerald-600" />
+        ) : (
+          <AlertTriangle className="size-3.5 text-amber-600" />
+        )}
+        <span
+          className={
+            veredito.bloqueia
+              ? "text-destructive"
+              : ativa
+                ? "text-emerald-700"
+                : "text-amber-700"
+          }
+        >
+          {consulta.situacaoTexto}
+        </span>
+      </p>
+      <p className="mt-1 font-semibold text-foreground">{consulta.razaoSocial}</p>
+      {consulta.cidade && (
+        <p className="text-muted-foreground">
+          {consulta.cidade}/{consulta.uf}
+          {consulta.bairro ? ` — ${consulta.bairro}` : ""}
+        </p>
+      )}
+      {perfil && <p className="mt-1 text-muted-foreground">{perfil.label}</p>}
+      {veredito.avisos.map((a) => (
+        <p key={a} className="mt-1 font-semibold text-amber-700">
+          {a}
+        </p>
+      ))}
+    </div>
   );
 }

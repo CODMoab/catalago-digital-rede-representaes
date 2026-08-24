@@ -10,6 +10,17 @@ const saveLeadSchema = z.object({
   state: z.string().max(2).default("BA"),
   discount_percent: z.number().default(15),
   source: z.string().default("welcome_roulette"),
+  // Vem da consulta à Receita. Opcional: se a consulta falhar, o cadastro entra
+  // do mesmo jeito, só sem etiqueta.
+  razao_social: z.string().max(200).default(""),
+  nome_fantasia: z.string().max(200).default(""),
+  situacao_cadastral: z.string().max(40).default(""),
+  cnae: z.string().max(20).default(""),
+  cnae_descricao: z.string().max(200).default(""),
+  perfil: z.string().max(30).default(""),
+  endereco: z.string().max(200).default(""),
+  bairro: z.string().max(120).default(""),
+  cep: z.string().max(12).default(""),
 });
 
 export const saveLead = createServerFn({ method: "POST" })
@@ -27,6 +38,16 @@ export const saveLead = createServerFn({ method: "POST" })
             cnpj: data.cnpj,
             city: data.city,
             state: data.state,
+            razao_social: data.razao_social,
+            nome_fantasia: data.nome_fantasia,
+            situacao_cadastral: data.situacao_cadastral,
+            cnae: data.cnae,
+            cnae_descricao: data.cnae_descricao,
+            perfil: data.perfil,
+            endereco: data.endereco,
+            bairro: data.bairro,
+            cep: data.cep,
+            consultado_em: data.situacao_cadastral ? new Date().toISOString() : null,
             discount_percent: data.discount_percent,
             source: data.source,
             updated_at: new Date().toISOString(),
@@ -130,6 +151,11 @@ export type ReactivationLead = {
   has_ordered: boolean;
   /** Token do link pessoal. Vazio para quem só apareceu em pedidos antigos. */
   access_token: string;
+  /** Vem da Receita. Vazio quando o cadastro é anterior à consulta. */
+  razao_social: string;
+  situacao_cadastral: string;
+  perfil: string;
+  cnae_descricao: string;
 };
 
 /** Lista todos os clientes/leads cadastrados e cruza com pedidos para identificar oportunidades de reativação (admin) */
@@ -234,6 +260,10 @@ export const listLeadsForReactivation = createServerFn({ method: "GET" })
           last_quote_at: lastAt,
           has_ordered: count > 0,
           access_token: l.access_token || "",
+          razao_social: l.razao_social || "",
+          situacao_cadastral: l.situacao_cadastral || "",
+          perfil: l.perfil || "",
+          cnae_descricao: l.cnae_descricao || "",
         });
       }
 
@@ -250,6 +280,10 @@ export const listLeadsForReactivation = createServerFn({ method: "GET" })
         // ele ganha um quando fizer o cadastro.
         result.push({
           access_token: "",
+          razao_social: "",
+          situacao_cadastral: "",
+          perfil: "",
+          cnae_descricao: "",
           id: q.id,
           name: q.customer_name,
           phone: q.customer_phone,

@@ -58,6 +58,7 @@ import { buildQuotePdf, downloadPdf, quoteFileName, type QuoteLine } from "@/lib
 import { conferirPrecos, resumoChecagem } from "@/lib/conferencia-preco";
 import { buildLeadsSheet, leadsSheetFileName } from "@/lib/leads-sheet";
 import { formatCnpj, formatPhone, onlyDigits } from "@/lib/leads";
+import { PERFIS, type PerfilLead } from "@/lib/cnpj";
 import { useModeloPayot } from "@/lib/use-modelo-payot";
 import { cn } from "@/lib/utils";
 
@@ -907,6 +908,11 @@ function ReactivationCard({
   const cleanPhone = onlyDigits(lead.phone);
   const firstName = lead.name.split(" ")[0];
 
+  // Etiquetas da consulta à Receita. Cadastro antigo não tem — some sem quebrar.
+  const perfil = lead.perfil ? PERFIS[lead.perfil as PerfilLead] : null;
+  const situacao = lead.situacao_cadastral.trim();
+  const situacaoOk = /ativa/i.test(situacao);
+
   // Mensagem personalizada de reativação
   const message = lead.has_ordered
     ? `Olá, *${firstName}*! Tudo bem? Aqui é da *Rede Representações*.\n\nPassando para saber como estão as vendas dos produtos na sua loja (*${lead.name}*) e se precisa de reposição de estoque para as marcas *Belliz* e *Payot*. Estamos com ótimas condições de entrega!`
@@ -955,6 +961,42 @@ Seu catálogo, já com seu desconto aplicado: ${linkPessoal}`
           <p className="text-xs text-muted-foreground">
             CNPJ: <strong className="font-mono text-foreground">{formatCnpj(lead.cnpj)}</strong> · WhatsApp:{" "}
             <strong className="text-foreground">{formatPhone(lead.phone)}</strong>
+
+          {(perfil || situacao) && (
+            <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+              {situacao && (
+                <span
+                  className={cn(
+                    "rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide",
+                    situacaoOk
+                      ? "bg-emerald-500/10 text-emerald-700"
+                      : "bg-destructive/10 text-destructive",
+                  )}
+                  title={
+                    situacaoOk
+                      ? "CNPJ ativo na Receita Federal."
+                      : "A indústria pode recusar o faturamento desse CNPJ."
+                  }
+                >
+                  {situacao}
+                </span>
+              )}
+              {perfil && (
+                <span
+                  className={cn(
+                    "rounded-full px-2 py-0.5 text-[10px] font-semibold",
+                    perfil.combina
+                      ? "bg-primary/10 text-primary"
+                      : "bg-amber-500/10 text-amber-700",
+                  )}
+                  title={lead.cnae_descricao || perfil.nota}
+                >
+                  {perfil.combina ? "" : "⚠ "}
+                  {perfil.label}
+                </span>
+              )}
+            </div>
+          )}
             {lead.city && (
               <>
                 {" · "}
