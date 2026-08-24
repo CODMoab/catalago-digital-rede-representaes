@@ -55,6 +55,7 @@ import { buildQuotePdf, downloadPdf, quoteFileName, type QuoteLine } from "@/lib
 import { conferirPrecos, resumoChecagem } from "@/lib/conferencia-preco";
 import { buildLeadsSheet, leadsSheetFileName } from "@/lib/leads-sheet";
 import { formatCnpj, formatPhone, onlyDigits } from "@/lib/leads";
+import { useModeloPayot } from "@/lib/use-modelo-payot";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/pedidos")({
@@ -109,6 +110,9 @@ function QuotesAndLeadsPage() {
   const [manualOpen, setManualOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [tabelaOpen, setTabelaOpen] = useState(false);
+  // Traz o mapa da tabela da Payot do banco assim que o painel abre, para a
+  // colagem sair alinhada mesmo em um aparelho que nunca importou a tabela.
+  const { status: statusModelo, publicar: publicarModelo } = useModeloPayot();
   // Ficha do cliente: guarda a chave (CNPJ ou telefone) de quem está aberto
   const [profileKey, setProfileKey] = useState<string | null>(null);
   const deleteQuoteFn = useServerFn(deleteQuote);
@@ -561,6 +565,8 @@ function QuotesAndLeadsPage() {
         open={tabelaOpen}
         onOpenChange={setTabelaOpen}
         onApplied={() => void loadData()}
+        publicarModelo={publicarModelo}
+        statusModelo={statusModelo}
       />
 
       <CustomerProfileDialog

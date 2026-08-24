@@ -16,7 +16,8 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { applyImport } from "@/lib/catalog.functions";
 import { lerTabelaPayot, type LeituraTabela } from "@/lib/table-import";
-import { salvarModeloPayot, origemDoModelo } from "@/lib/modelo-payot";
+import { origemDoModelo, type ModeloPayot } from "@/lib/modelo-payot";
+import type { StatusModelo } from "@/lib/use-modelo-payot";
 import { TABELA_VAREJO } from "@/lib/tabela-preco";
 
 const brl = (v: number) =>
@@ -26,12 +27,17 @@ interface UpdateTableDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onApplied: () => void;
+  /** Publica o mapa no banco. Devolve false se só deu para salvar localmente. */
+  publicarModelo: (modelo: ModeloPayot) => Promise<boolean>;
+  statusModelo: StatusModelo;
 }
 
 export function UpdateTableDialog({
   open,
   onOpenChange,
   onApplied,
+  publicarModelo,
+  statusModelo,
 }: UpdateTableDialogProps) {
   const [leitura, setLeitura] = useState<LeituraTabela | null>(null);
   const [nomeArquivo, setNomeArquivo] = useState("");
@@ -69,9 +75,13 @@ export function UpdateTableDialog({
           deactivateMissing: true,
         },
       });
-      salvarModeloPayot(leitura.modelo);
+      const sincronizou = await publicarModelo(leitura.modelo);
       toast.success("Tabela da Payot atualizada.", {
-        description: `${res.upserted} produtos gravados${res.deactivated ? `, ${res.deactivated} desativados` : ""}. O mapa da colagem foi atualizado.`,
+        description: `${res.upserted} produtos gravados${res.deactivated ? `, ${res.deactivated} desativados` : ""}. ${
+          sincronizou
+            ? "O mapa da colagem valia para todos os seus aparelhos."
+            : "Atenção: o mapa da colagem ficou só neste aparelho — não consegui gravar no sistema."
+        }`,
       });
       setLeitura(null);
       setNomeArquivo("");
@@ -105,8 +115,16 @@ export function UpdateTableDialog({
               <div>
                 <p className="text-xs font-semibold">Tabela de Preços Payot (.xlsx)</p>
                 <p className="text-[11px] text-muted-foreground">
-                  {origemDoModelo()}
+                  {statusModelo === "carregando"
+                    ? "Buscando o mapa da tabela no sistema…"
+                    : origemDoModelo()}
                 </p>
+                {statusModelo === "offline" && (
+                  <p className="mt-0.5 text-[11px] font-semibold text-amber-700">
+                    Sem contato com o sistema: o que for importado agora vale só
+                    neste aparelho.
+                  </p>
+                )}
               </div>
               <input
                 ref={inputRef}
@@ -246,7 +264,7 @@ export function UpdateTableDialog({
               <div className="rounded-xl border border-border bg-muted/40 p-4">
                 <p className="text-[11px] text-muted-foreground">
                   Ao aplicar, os preços do catálogo do site passam a ser os desta tabela,
-                  e o mapa de colagem é regravado neste navegador. Os preços continuam
+                  e o mapa de colagem passa a valer em todos os seus aparelhos. Os preços continuam
                   sendo os líquidos com os 15% — nada é descontado por cima.
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
