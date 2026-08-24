@@ -11,8 +11,10 @@ import { modeloPayotAtual, origemDoModelo } from "@/lib/modelo-payot";
  * Planilha de colagem: leva o pedido para os modelos oficiais das indústrias
  * sem tentar reescrever os arquivos delas (que têm fórmula, formatação e macro).
  *
- * Payot — "Tabela De Preços Payot": a coluna QTD (F) fica alinhada com as linhas
- * 11 a 183 do modelo, então basta colar a coluna inteira em F11.
+ * Payot — a aba PEDIDO traz só os itens pedidos, código e quantidade lado a lado,
+ * que é o que se digita no TOTVS e o que um robô consegue ler depois. A aba COLAR
+ * continua existindo para quem preferir preencher o modelo oficial: ela é a coluna
+ * QTD inteira, alinhada com as linhas do modelo do mês.
  *
  * Belliz — "Talão de Pedidos" (.xlsm): a aba _PEDIDO recebe código na coluna A e
  * quantidade na B a partir da linha 8; o resto o próprio talão preenche sozinho.
@@ -37,7 +39,7 @@ export function pasteInstruction(brandId: "belliz" | "payot"): string {
     return `Abra o Talão de Pedidos Belliz, vá na aba _PEDIDO, clique na célula A${BELLIZ_PRIMEIRA_LINHA} e cole as duas colunas.`;
   }
   const m = modeloPayotAtual();
-  return `Abra o modelo da Payot, clique na célula ${m.colunaQtd}${m.primeiraLinha} e cole a coluna inteira.`;
+  return `Digite no TOTVS pela aba PEDIDO (código e quantidade). Para preencher o modelo oficial da Payot, use a aba COLAR na célula ${m.colunaQtd}${m.primeiraLinha}.`;
 }
 
 function abaComoUsar(brandId: "belliz" | "payot"): (string | number)[][] {
@@ -45,12 +47,17 @@ function abaComoUsar(brandId: "belliz" | "payot"): (string | number)[][] {
   const passos =
     brandId === "payot"
       ? [
-          ["1", "Abra o modelo Tabela De Preços Payot do mês."],
-          ["2", `Clique na célula ${m.colunaQtd}${m.primeiraLinha} (primeira linha da coluna QTD).`],
-          ["3", "Copie a coluna inteira da aba COLAR e cole aí. Uma colagem só."],
-          ["4", "Confira o total e a aba CONFERENCIA antes de enviar."],
+          ["PARA LANÇAR NO TOTVS (caminho normal)"],
+          ["1", "Abra a aba PEDIDO: só os itens pedidos, código e quantidade."],
+          ["2", "Digite item a item. A descrição está ao lado só para conferir."],
+          ["3", "Se houver a aba PROVADOR, lance ela como um segundo pedido."],
           ["", ""],
-          ["Atenção", "Se a Payot mudar o modelo, a ordem das linhas muda junto. Importe a tabela nova no painel antes de colar."],
+          ["PARA PREENCHER O MODELO OFICIAL DA PAYOT (opcional)"],
+          ["4", "Abra o modelo Tabela De Preços Payot do mês."],
+          ["5", `Clique na célula ${m.colunaQtd}${m.primeiraLinha} (primeira linha da coluna QTD).`],
+          ["6", "Copie a coluna inteira da aba COLAR e cole aí. Uma colagem só."],
+          ["", ""],
+          ["Atenção", "A aba COLAR depende da ordem das linhas do modelo. Se a Payot mudou a tabela, importe a tabela nova no painel antes de usar essa aba. A aba PEDIDO não depende disso."],
           ["Mapa", origemDoModelo(m)],
         ]
       : [
@@ -82,6 +89,36 @@ export function buildPasteSheet(
   let naoEncontrados: string[] = [];
 
   if (meta.brandId === "payot") {
+    // Caminho normal: só os itens pedidos, na ordem em que entraram no pedido.
+    // Não depende do mapa da tabela, então nunca sai torto.
+    const nomes = new Map<string, string>();
+    for (const i of items) if (!nomes.has(i.code)) nomes.set(i.code, i.name);
+    const pedido: (string | number)[][] = [
+      ["CÓDIGO", "QTDE", "DESCRIÇÃO (só para conferir)"],
+      ...[...porCodigo.entries()]
+        .filter(([, qtd]) => qtd > 0)
+        .map(([code, qtd]) => [Number(code) || code, qtd, nomes.get(code) ?? ""]),
+    ];
+    const wsPedido = XLSX.utils.aoa_to_sheet(pedido);
+    wsPedido["!cols"] = [{ wch: 12 }, { wch: 10 }, { wch: 46 }];
+    XLSX.utils.book_append_sheet(wb, wsPedido, "PEDIDO");
+
+    const provador = buildProvadorOrder(items);
+    if (provador.length > 0) {
+      const wsProv = XLSX.utils.aoa_to_sheet([
+        ["CÓDIGO", "QTDE", "DESCRIÇÃO (só para conferir)", "CÓDIGO COMPRADO", "QTDE COMPRADA"],
+        ...provador.map((l) => [
+          Number(l.code) || l.code,
+          l.qty,
+          l.name,
+          Number(l.originCode) || l.originCode,
+          l.boughtQty,
+        ]),
+      ]);
+      wsProv["!cols"] = [{ wch: 12 }, { wch: 10 }, { wch: 46 }, { wch: 16 }, { wch: 14 }];
+      XLSX.utils.book_append_sheet(wb, wsProv, "PROVADOR");
+    }
+
     const modeloPayot = modeloPayotAtual();
     const coluna = modeloPayot.linhas.map((code) => {
       if (!code) return [null];
@@ -133,20 +170,15 @@ export function buildPasteSheet(
   if (naoEncontrados.length > 0) {
     conf.push([], [
       "ATENÇÃO",
-      `${naoEncontrados.length} item(ns) não existem no modelo desta tabela e ficaram de fora da colagem: ${naoEncontrados.join(", ")}`,
+      `${naoEncontrados.length} item(ns) não existem no modelo desta tabela e ficaram de fora da aba COLAR (a aba PEDIDO tem todos): ${naoEncontrados.join(", ")}`,
     ]);
   }
 
-  if (meta.brandId === "payot") {
-    const provador = buildProvadorOrder(items);
-    if (provador.length > 0) {
-      conf.push(
-        [],
-        ["PEDIDO PROVADOR — lançar separado"],
-        ["CÓDIGO PROVADOR", "CÓDIGO DO ITEM", "DESCRIÇÃO", "QTDE COMPRADA", "BONIFICADA"],
-        ...provador.map((l) => [l.code, l.originCode, l.name, l.boughtQty, l.qty]),
-      );
-    }
+  if (meta.brandId === "payot" && buildProvadorOrder(items).length > 0) {
+    conf.push([], [
+      "PROVADOR",
+      "Os itens bonificados estão na aba PROVADOR. Lançar como um segundo pedido.",
+    ]);
   }
 
   // Regra do sistema: o preço do catálogo já é o líquido, nada desconta em cima
