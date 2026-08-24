@@ -31,7 +31,17 @@ export const BELLIZ: BellizProduct[] = [...(bellizDataRaw as BellizProduct[])];
 
 export const BRANDS: Record<
   BrandId,
-  { id: BrandId; name: string; tagline: string; description: string; terms: string }
+  {
+    id: BrandId;
+    name: string;
+    tagline: string;
+    description: string;
+    terms: string;
+    /** Foto de campanha do catálogo da própria indústria. */
+    image: string;
+    /** Onde o corte da foto se apoia, para o rosto não ficar torto. */
+    imagePosition: string;
+  }
 > = {
   belliz: {
     id: "belliz",
@@ -39,6 +49,8 @@ export const BRANDS: Record<
     tagline: "Acessórios de beleza",
     description: "Ricca, Vertix, Belliz, Enox e Kess.",
     terms: "Venda por coletivo · pedido mínimo R$ 2.000",
+    image: "/marcas/belliz.jpg",
+    imagePosition: "center 26%",
   },
   payot: {
     id: "payot",
@@ -46,6 +58,8 @@ export const BRANDS: Record<
     tagline: "Skincare e maquiagem",
     description: "Tratamento facial, proteção solar e maquiagem.",
     terms: "Venda por unidade · pedido mínimo R$ 1.200",
+    image: "/marcas/payot.jpg",
+    imagePosition: "center 50%",
   },
 };
 

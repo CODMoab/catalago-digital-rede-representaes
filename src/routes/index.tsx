@@ -799,9 +799,21 @@ function LandingView({
                 // Sem cadastro/login o clique não abre a marca: chama o portal de acesso
                 onClick={() => (locked ? onOpenWelcome("choice") : setActiveBrand(b))}
                 className={cn(
-                  "group flex flex-col rounded-2xl border border-border bg-card p-8 text-left transition-all hover:-translate-y-1 hover:border-primary/60 hover:shadow-xl",
+                  "group flex flex-col overflow-hidden rounded-2xl border border-border bg-card text-left transition-all hover:-translate-y-1 hover:border-primary/60 hover:shadow-xl",
                 )}
               >
+                {/* Foto de campanha do catálogo da própria indústria */}
+                <div className="relative h-44 w-full overflow-hidden bg-muted sm:h-52">
+                  <img
+                    src={brand.image}
+                    alt=""
+                    loading="lazy"
+                    style={{ objectPosition: brand.imagePosition }}
+                    className="size-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
+                  />
+                </div>
+
+                <div className="flex flex-1 flex-col p-8">
                 <div className="flex items-center justify-between">
                   <span className="inline-flex items-center gap-2 rounded-full bg-secondary px-3 py-1 text-xs font-semibold text-secondary-foreground">
                     <Package className="size-3" /> {count} produtos
@@ -812,7 +824,7 @@ function LandingView({
                     </span>
                   )}
                 </div>
-                <h2 className="mt-6 text-4xl font-bold tracking-tight">
+                <h2 className="mt-5 text-4xl font-bold tracking-tight">
                   {brand.name}
                 </h2>
                 <p className="mt-1 text-sm font-medium text-primary">
@@ -826,9 +838,7 @@ function LandingView({
                 <p className="mt-2 text-xs font-semibold text-foreground">
                   {brand.terms}
                 </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Preços já com o desconto de representante.
-                </p>
+
                 <div className="mt-8 inline-flex items-center gap-2 text-sm font-semibold text-primary">
                   {locked ? (
                     <>
@@ -840,6 +850,7 @@ function LandingView({
                       <ArrowLeft className="size-4 rotate-180 transition-transform group-hover:translate-x-1" />
                     </>
                   )}
+                </div>
                 </div>
               </button>
             );
