@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
   FileSpreadsheet,
@@ -51,6 +51,8 @@ import { applyCatalog } from "@/lib/catalog";
 import { listLeadsForReactivation, type ReactivationLead } from "@/lib/leads.functions";
 import { buildOrderSheet, downloadBlob, orderSheetFileName } from "@/lib/order-sheet";
 import { buildPasteSheet, pasteSheetFileName, pasteInstruction } from "@/lib/paste-sheet";
+import { preencherTalaoBelliz, talaoFileName, TalaoInvalido } from "@/lib/belliz-talao";
+import { guardarTalao, lerTalao, type TalaoGuardado } from "@/lib/talao-store";
 import { buildQuotePdf, downloadPdf, quoteFileName, type QuoteLine } from "@/lib/quote-pdf";
 import { conferirPrecos, resumoChecagem } from "@/lib/conferencia-preco";
 import { buildLeadsSheet, leadsSheetFileName } from "@/lib/leads-sheet";
@@ -609,6 +611,50 @@ function QuoteCard({
   };
 
   /** Versão pronta para colar no modelo oficial da indústria. */
+  // Talão oficial da Belliz preenchido: escreve código e quantidade dentro do
+  // arquivo original, sem tocar nas macros nem nas abas escondidas dele.
+  const talaoRef = useRef<HTMLInputElement | null>(null);
+  const [talao, setTalao] = useState<TalaoGuardado | null>(null);
+  const [gerandoTalao, setGerandoTalao] = useState(false);
+
+  useEffect(() => {
+    if (brand !== "belliz") return;
+    void lerTalao().then(setTalao);
+  }, [brand]);
+
+  const gerarTalao = async (guardado: TalaoGuardado) => {
+    setGerandoTalao(true);
+    try {
+      const res = preencherTalaoBelliz(guardado.arquivo.slice(0), quote.items);
+      downloadBlob(res.blob, talaoFileName(quote.customer_name, quote.created_at));
+      toast.success(`Talão preenchido com ${res.lancados} itens.`, {
+        description:
+          "É o talão oficial da Belliz. Abra no Excel, habilite as macros e confira a UF antes de enviar.",
+      });
+    } catch (err) {
+      toast.error(
+        err instanceof TalaoInvalido ? err.message : "Não consegui preencher o talão.",
+      );
+    } finally {
+      setGerandoTalao(false);
+    }
+  };
+
+  const escolherTalao = async (f: File | undefined) => {
+    if (!f) return;
+    if (!/\.xlsm$/i.test(f.name)) {
+      toast.error("Escolha o Talão de Pedidos da Belliz (.xlsm).");
+      return;
+    }
+    try {
+      const guardado = await guardarTalao(f);
+      setTalao(guardado);
+      await gerarTalao(guardado);
+    } catch {
+      toast.error("Não consegui guardar o talão neste navegador.");
+    }
+  };
+
   const downloadColar = () => {
     const meta = {
       brandId: brand as "belliz" | "payot",
@@ -719,6 +765,37 @@ function QuoteCard({
           >
             <ClipboardPaste className="size-4" /> Colar no modelo
           </Button>
+
+          {/* Talao oficial da Belliz, ja preenchido */}
+          {brand === "belliz" && (
+            <>
+              <input
+                ref={talaoRef}
+                type="file"
+                accept=".xlsm"
+                className="hidden"
+                onChange={(e) => void escolherTalao(e.target.files?.[0])}
+              />
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={gerandoTalao}
+                className="gap-1.5 text-xs"
+                title={
+                  talao
+                    ? `Preenche o ${talao.nome} guardado neste navegador.`
+                    : "Escolha o Talão de Pedidos da Belliz uma vez; depois é só clicar."
+                }
+                onClick={() => {
+                  if (talao) void gerarTalao(talao);
+                  else talaoRef.current?.click();
+                }}
+              >
+                <FileSpreadsheet className="size-4" />
+                {gerandoTalao ? "Preenchendo…" : talao ? "Talão preenchido" : "Talão: escolher modelo"}
+              </Button>
+            </>
+          )}
 
           {/* Versao enxuta para mandar ao cliente */}
           <Button
