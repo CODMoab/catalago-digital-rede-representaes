@@ -821,6 +821,14 @@ function LandingView({
                 <p className="mt-4 text-sm text-muted-foreground">
                   {brand.description}
                 </p>
+                {/* Condição comercial na entrada: o mínimo já é obrigatório no
+                    envio, e descobrir isso só no fim é o que faz o lead desistir */}
+                <p className="mt-2 text-xs font-semibold text-foreground">
+                  {brand.terms}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Preços já com o desconto de representante.
+                </p>
                 <div className="mt-8 inline-flex items-center gap-2 text-sm font-semibold text-primary">
                   {locked ? (
                     <>

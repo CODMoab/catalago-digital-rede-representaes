@@ -29,20 +29,23 @@ export type BrandId = "belliz" | "payot";
 export const PAYOT: PayotProduct[] = [...(payotDataRaw as PayotProduct[])];
 export const BELLIZ: BellizProduct[] = [...(bellizDataRaw as BellizProduct[])];
 
-export const BRANDS: Record<BrandId, { id: BrandId; name: string; tagline: string; description: string }> = {
+export const BRANDS: Record<
+  BrandId,
+  { id: BrandId; name: string; tagline: string; description: string; terms: string }
+> = {
   belliz: {
     id: "belliz",
     name: "Belliz",
     tagline: "Acessórios de beleza",
-    description:
-      "Pentes, escovas, espelhos e acessórios das marcas Ricca, Belliz, Enox, Kess e Vertix. Venda por coletivo.",
+    description: "Ricca, Vertix, Belliz, Enox e Kess.",
+    terms: "Venda por coletivo · pedido mínimo R$ 2.000",
   },
   payot: {
     id: "payot",
     name: "Payot",
     tagline: "Skincare e maquiagem",
-    description:
-      "Cosméticos brasileiros com foco em tratamento, proteção solar e maquiagem. Preços já com desconto de representante.",
+    description: "Tratamento facial, proteção solar e maquiagem.",
+    terms: "Venda por unidade · pedido mínimo R$ 1.200",
   },
 };
 
