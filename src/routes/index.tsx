@@ -58,12 +58,11 @@ import {
 import {
   getLocalCustomer,
   saveLocalCustomer,
-  getDiscountedPrice,
   formatPhone,
-  DEFAULT_DISCOUNT_PERCENT,
   COVERAGE_NOTICE,
   type CustomerProfile,
 } from "@/lib/leads";
+import { precoBruto, TABELA_VAREJO } from "@/lib/tabela-preco";
 import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
 import { findLeadByToken } from "@/lib/leads.functions";
@@ -206,7 +205,17 @@ function CatalogPage() {
     }
   };
 
-  const discountPercent = customerProfile?.discountPercent || DEFAULT_DISCOUNT_PERCENT;
+  /**
+   * REGRA DE PREÇO — o preço guardado no catálogo JÁ É o líquido, com os 15%
+   * do representante aplicados (é o "Preço Líquido Un." do talão Belliz e o
+   * valor da tabela Payot). NADA desconta em cima dele.
+   *
+   * Os 15% aqui embaixo servem só para mostrar de quanto o cliente saiu da
+   * tabela cheia da indústria — o valor riscado vem de `precoBruto`, não de um
+   * segundo desconto. Fixo na tabela de varejo para nenhum valor solto do
+   * cadastro fazer o selo mentir.
+   */
+  const discountPercent = TABELA_VAREJO;
 
   const totals = useMemo(() => {
     const bellizItems = Object.entries(cart.belliz);
@@ -219,9 +228,9 @@ function CatalogPage() {
       if (!p) continue;
       bellizCount += qty;
       const baseUnit = p.priceColetivo && p.coletivo ? p.priceColetivo / p.coletivo : p.priceUnit;
-      const discountedUnit = getDiscountedPrice(baseUnit, discountPercent);
+      const discountedUnit = baseUnit;
       bellizTotal += discountedUnit * qty;
-      bellizOriginal += baseUnit * qty;
+      bellizOriginal += precoBruto(baseUnit) * qty;
     }
     let payotTotal = 0;
     let payotOriginal = 0;
@@ -231,9 +240,9 @@ function CatalogPage() {
       if (!p) continue;
       payotCount += qty;
       const baseUnit = p.price;
-      const discountedUnit = getDiscountedPrice(baseUnit, discountPercent);
+      const discountedUnit = baseUnit;
       payotTotal += discountedUnit * qty;
-      payotOriginal += baseUnit * qty;
+      payotOriginal += precoBruto(baseUnit) * qty;
     }
     return {
       belliz: { count: bellizCount, total: bellizTotal, original: bellizOriginal, items: bellizItems.length },
@@ -259,7 +268,7 @@ function CatalogPage() {
         if (!p) continue;
         const baseUnit =
           p.priceColetivo && p.coletivo ? p.priceColetivo / p.coletivo : p.priceUnit;
-        const unit = getDiscountedPrice(baseUnit, discountPercent);
+        const unit = baseUnit;
         out.push({
           brand: BRANDS.belliz.name,
           code: p.code,
@@ -274,7 +283,7 @@ function CatalogPage() {
       for (const [code, qty] of Object.entries(cart.payot)) {
         const p = PAYOT.find((x) => x.code === code);
         if (!p) continue;
-        const unit = getDiscountedPrice(p.price, discountPercent);
+        const unit = p.price;
         out.push({
           brand: BRANDS.payot.name,
           code: p.code,
@@ -301,7 +310,7 @@ function CatalogPage() {
             ? p.priceColetivo / p.coletivo
             : p.priceUnit
           : p.price;
-      const unit = getDiscountedPrice(baseUnit, discountPercent);
+      const unit = baseUnit;
       return [
         {
           code: p.code,
@@ -612,7 +621,7 @@ function SiteHeader({
                                 ? (p as any).priceColetivo / (p as any).coletivo
                                 : (p as any).priceUnit
                               : (p as any).price;
-                          const unit = getDiscountedPrice(baseUnit, discountPercent);
+                          const unit = baseUnit;
                           const coletivo =
                             b === "belliz" ? (p as any).coletivo || 1 : 1;
                           const img = productImage(b, p.code);
@@ -1104,9 +1113,9 @@ function ProductCard({
       : p.priceUnit
     : p.price;
 
-  const unitPrice = getDiscountedPrice(baseUnit, discountPercent);
+  const unitPrice = baseUnit;
   const baseColetivo = isBelliz ? (p.priceColetivo ?? p.priceUnit * coletivo) : baseUnit;
-  const coletivoPrice = isBelliz ? getDiscountedPrice(baseColetivo, discountPercent) : unitPrice;
+  const coletivoPrice = isBelliz ? baseColetivo : unitPrice;
 
   const step = coletivo;
   const inc = () => setQty(qty === 0 ? step : qty + step);
@@ -1161,7 +1170,7 @@ function ProductCard({
                 </p>
                 {discountPercent > 0 && (
                   <p className="text-xs text-muted-foreground line-through">
-                    {currency(baseColetivo)}
+                    {currency(precoBruto(baseColetivo))}
                   </p>
                 )}
               </div>
@@ -1175,7 +1184,7 @@ function ProductCard({
                 <p className="text-lg font-bold text-primary">{currency(unitPrice)}</p>
                 {discountPercent > 0 && (
                   <p className="text-xs text-muted-foreground line-through">
-                    {currency(baseUnit)}
+                    {currency(precoBruto(baseUnit))}
                   </p>
                 )}
               </div>
@@ -1304,7 +1313,7 @@ function QuoteDrawer({
                     ? (p as any).priceColetivo / (p as any).coletivo
                     : (p as any).priceUnit
                   : (p as any).price;
-              const unit = getDiscountedPrice(baseUnit, discountPercent);
+              const unit = baseUnit;
               const coletivo = brand === "belliz" ? (p as any).coletivo || 1 : 1;
               const img = productImage(brand, p.code);
               return (
@@ -1336,7 +1345,7 @@ function QuoteDrawer({
                         <span className="font-semibold text-primary">{currency(unit)} / un</span>
                         {discountPercent > 0 && (
                           <span className="text-[10px] text-muted-foreground line-through">
-                            {currency(baseUnit)}
+                            {currency(precoBruto(baseUnit))}
                           </span>
                         )}
                         {brand === "belliz" && (
