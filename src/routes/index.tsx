@@ -576,9 +576,16 @@ function SiteHeader({
                 <ShoppingBag className="size-4" />
                 <span className="hidden sm:inline">Meus pedidos</span>
                 {totals.all > 0 && (
-                  <span className="rounded-full bg-primary px-2 py-0.5 text-xs font-semibold text-primary-foreground">
-                    {totals.all}
-                  </span>
+                  <>
+                    <span className="rounded-full bg-primary px-2 py-0.5 text-xs font-semibold text-primary-foreground">
+                      {totals.all}
+                    </span>
+                    {/* O total acompanha o cliente pelo cabeçalho fixo: com 1.300
+                        itens, o resumo do topo da página some na primeira rolagem. */}
+                    <span className="text-sm font-bold tabular-nums text-primary">
+                      {currency(totals.belliz.total + totals.payot.total)}
+                    </span>
+                  </>
                 )}
               </Button>
             </SheetTrigger>
@@ -1027,6 +1034,35 @@ function BrandView({
             </button>
           ))}
         </div>
+
+        {/* Placar do pedido: enquanto o cliente escolhe entre 1.300 itens, ele
+            precisa ver o total e o quanto falta para o mínimo sem voltar ao topo. */}
+        {t.count > 0 && (
+          <button
+            onClick={onOpenQuote}
+            className={cn(
+              "mt-3 flex w-full items-center justify-between gap-3 rounded-lg border px-3 py-2 text-left transition-colors",
+              minReached
+                ? "border-primary/40 bg-primary/5 hover:bg-primary/10"
+                : "border-amber-500/50 bg-amber-500/5 hover:bg-amber-500/10",
+            )}
+          >
+            <span className="min-w-0">
+              <span className="block text-base font-bold tabular-nums text-foreground">
+                {currency(t.total)}
+              </span>
+              <span className="block truncate text-[11px] text-muted-foreground">
+                {t.count} un em {t.items} {t.items === 1 ? "item" : "itens"} ·{" "}
+                {minReached
+                  ? "mínimo atingido"
+                  : `faltam ${currency(missing)} para o mínimo`}
+              </span>
+            </span>
+            <span className="shrink-0 text-xs font-semibold text-primary">
+              Ver pedido →
+            </span>
+          </button>
+        )}
       </div>
 
       <p className="mb-4 text-xs text-muted-foreground">
