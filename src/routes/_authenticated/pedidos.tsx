@@ -117,6 +117,8 @@ function QuotesAndLeadsPage() {
   const [tabelaOpen, setTabelaOpen] = useState(false);
   // Quantos pedidos ainda têm item lido sem certeza — vira aviso na aba.
   const pedidosAConferir = quotes.filter((q) => q.items.some((i) => i.review)).length;
+  /** Pedido que chegou e ainda não foi tocado. Some quando a situação muda. */
+  const pedidosNovos = quotes.filter((q) => q.status === "novo").length;
   // Traz o mapa da tabela da Payot do banco assim que o painel abre, para a
   // colagem sair alinhada mesmo em um aparelho que nunca importou a tabela.
   const { status: statusModelo, publicar: publicarModelo } = useModeloPayot();
@@ -306,6 +308,14 @@ function QuotesAndLeadsPage() {
               <span className="ml-1 rounded-full bg-primary/20 px-2 py-0.5 text-[10px] text-primary">
                 {quotes.length}
               </span>
+              {pedidosNovos > 0 && (
+                <span
+                  className="ml-1 rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold text-primary-foreground"
+                  title="Pedidos que chegaram e ainda não foram abertos."
+                >
+                  {pedidosNovos} {pedidosNovos === 1 ? "novo" : "novos"}
+                </span>
+              )}
               {pedidosAConferir > 0 && (
                 <span
                   className="ml-1 rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-bold text-amber-600"

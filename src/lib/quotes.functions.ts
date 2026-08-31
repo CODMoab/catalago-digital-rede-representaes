@@ -56,7 +56,28 @@ export const submitQuote = createServerFn({ method: "POST" })
       .select("id, created_at")
       .single();
     if (error) throw new Error(error.message);
-    return row;
+
+    // O aviso sai aqui, com o pedido já gravado: se o e-mail falhar, o pedido
+    // continua salvo. O cliente não espera por isto — no navegador a gravação
+    // roda solta, em paralelo com o PDF.
+    const { avisarPedidoNovo, protocoloDoPedido } = await import("@/lib/aviso-pedido.server");
+    const aviso = await avisarPedidoNovo({
+      id: row.id,
+      brand_id: data.brand_id,
+      customer_name: data.customer_name,
+      customer_phone: data.customer_phone,
+      customer_cnpj: data.customer_cnpj,
+      items: data.items,
+      total,
+      criadoEm: row.created_at,
+    });
+
+    return {
+      ...row,
+      protocolo: protocoloDoPedido(row.id),
+      avisado: aviso.enviado,
+      motivoDoAviso: aviso.enviado ? "" : aviso.motivo,
+    };
   });
 
 export type QuoteRecord = {

@@ -368,9 +368,15 @@ function CatalogPage() {
     };
   };
 
+  /**
+   * Grava o pedido e devolve o protocolo para o cliente.
+   *
+   * Roda solta, sem `await` de quem chama: o navegador só deixa abrir o
+   * WhatsApp dentro do clique do cliente, então segurar aqui mataria o envio.
+   */
   const record = async (brand: BrandId, items: QuoteItem[]) => {
     try {
-      await save({
+      const r = await save({
         data: {
           brand_id: brand,
           source: "catalogo" as const,
@@ -380,8 +386,16 @@ function CatalogPage() {
           items,
         },
       });
+      toast.success(`Pedido registrado · protocolo ${r.protocolo}`, {
+        description: `${REP_NAME} já foi avisada. Guarde este número para acompanhar.`,
+        duration: 12000,
+      });
     } catch {
-      /* o pedido segue pelo WhatsApp mesmo se o registro falhar */
+      // Falhar calado deixava os dois lados achando que o outro estava com a bola.
+      toast.error("Não conseguimos registrar seu pedido no sistema.", {
+        description: `Mande o PDF pelo WhatsApp +${WHATSAPP_NUMBER} para o pedido não se perder.`,
+        duration: 20000,
+      });
     }
   };
 
